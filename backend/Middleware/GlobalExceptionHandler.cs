@@ -1,4 +1,5 @@
 using Backend.ExternalClients;
+using Backend.Coach;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics;
@@ -20,6 +21,7 @@ public sealed class GlobalExceptionHandler(
         var isUpstreamFailure = fplApiException is not null;
         var isValidationFailure = exception is ArgumentException or JsonException;
         var isDatabaseFailure = exception is DbUpdateException or NpgsqlException;
+        var isCopilotFailure = exception is CopilotServiceException;
         var badHttpRequest = exception as BadHttpRequestException;
         var statusCode = badHttpRequest?.StatusCode ?? (isMissingFplData
             ? StatusCodes.Status404NotFound
@@ -27,6 +29,8 @@ public sealed class GlobalExceptionHandler(
                 ? StatusCodes.Status400BadRequest
                 : isDatabaseFailure
                     ? StatusCodes.Status503ServiceUnavailable
+                    : isCopilotFailure
+                        ? StatusCodes.Status502BadGateway
             : isUpstreamFailure
                 ? StatusCodes.Status502BadGateway
                 : StatusCodes.Status500InternalServerError);
@@ -53,6 +57,8 @@ public sealed class GlobalExceptionHandler(
                     ? "The request was invalid."
                     : isDatabaseFailure
                         ? "Application storage is temporarily unavailable."
+                        : isCopilotFailure
+                            ? "GitHub Copilot is temporarily unavailable."
                 : isUpstreamFailure
                     ? "The Fantasy Premier League service is temporarily unavailable."
                     : "An unexpected error occurred.",

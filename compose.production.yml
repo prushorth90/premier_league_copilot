@@ -34,6 +34,12 @@ services:
       Security__UseHttpsRedirection: "false"
       Security__RequestLimitPerMinute: ${REQUEST_LIMIT_PER_MINUTE:-120}
       Security__MaxRequestBodyKilobytes: ${MAX_REQUEST_BODY_KILOBYTES:-64}
+      Copilot__Model: ${COPILOT_MODEL:-auto}
+      Copilot__GitHubToken: ${COPILOT_GITHUB_TOKEN:-}
+      Copilot__RuntimeUrl: ${COPILOT_RUNTIME_URL:-}
+      Copilot__RuntimeConnectionToken: ${COPILOT_RUNTIME_CONNECTION_TOKEN:-}
+      Copilot__BaseDirectory: /tmp/touchline-copilot
+      Copilot__RequestTimeoutSeconds: ${COPILOT_REQUEST_TIMEOUT_SECONDS:-120}
     expose:
       - "8080"
     read_only: true

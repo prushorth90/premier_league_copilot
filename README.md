@@ -182,7 +182,7 @@ The React `PlayerHeadshot` component uses intrinsic `110x140` dimensions, fixed 
 
 ### AI Coach
 
-The AI Coach page provides the first chat interaction layer for natural-language squad questions. Every message includes the connected public FPL Team ID and is sent as JSON to `POST /api/coach/chat`:
+The AI Coach uses the official `GitHub.Copilot.SDK` .NET package entirely inside the ASP.NET backend. The React application sends only the natural-language message and connected public FPL Team ID to `POST /api/coach/chat`; it never receives a GitHub token, SDK configuration, model credential, prompt context, or direct model endpoint.
 
 ```json
 {
@@ -191,13 +191,13 @@ The AI Coach page provides the first chat interaction layer for natural-language
 }
 ```
 
-The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, then matches named players in the message against the owned squad. This initial endpoint returns deterministic mocked guidance and does not call an AI provider or use private FPL credentials.
+The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, then matches named players in the message against the owned squad. It serializes a bounded structured squad context and sends that context plus the user's message to a fresh Copilot session. No tools, MCP servers, custom tools, or specialist agents are enabled.
 
 The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Transfer`, or `Replacement`), a 0-100 confidence score, and optional matched-player details:
 
 ```json
 {
-	"message": "I found Saka in your current squad and noted the injury concern...",
+	"message": "Copilot-generated FPL guidance based on the supplied squad context...",
 	"teamId": 7558250,
 	"recommendationType": "Availability",
 	"confidence": 78,
@@ -210,11 +210,13 @@ The strongly typed response includes the final message, recommendation type (`Ge
 		"chanceOfPlayingNextRound": null,
 		"photoUrl": "https://resources.premierleague.com/premierleague/photos/players/110x140/p223340.png"
 	},
-	"isMocked": true
+	"isMocked": false
 }
 ```
 
-The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and upstream failures use the existing sanitized Problem Details handling. The `ICoachService` abstraction keeps the controller contract stable for a future AI implementation.
+The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly and `ICopilotChatClient` isolates all SDK calls.
+
+The SDK can use its bundled runtime with `COPILOT_GITHUB_TOKEN`, or connect to a private external headless runtime using `COPILOT_RUNTIME_URL` and an optional connection token. The GitHub account or organization must permit Copilot SDK/CLI features. A valid token alone is insufficient when enterprise or organization policy disables SDK access.
 
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
@@ -393,6 +395,11 @@ Example values live in `.env.example`, `frontend/.env.example`, and `backend/.en
 | `Security__MaxRequestBodyKilobytes` | No | Kestrel request-body limit, default `64` |
 | `Security__UseHttpsRedirection` | No | Enable only when ASP.NET owns HTTPS |
 | `VITE_API_BASE_URL` | Development only | Cross-origin backend base URL for standalone Vite |
+| `COPILOT_MODEL` | No | Copilot model selection, default `auto` |
+| `COPILOT_GITHUB_TOKEN` | Bundled runtime | Backend-only GitHub token for Copilot SDK authentication |
+| `COPILOT_RUNTIME_URL` | External runtime | Private Copilot CLI headless server URL |
+| `COPILOT_RUNTIME_CONNECTION_TOKEN` | No | Shared secret for an external runtime connection |
+| `COPILOT_REQUEST_TIMEOUT_SECONDS` | No | Copilot request timeout, default `120` |
 
 ## Troubleshooting
 
@@ -400,4 +407,5 @@ Example values live in `.env.example`, `frontend/.env.example`, and `backend/.en
 - `Degraded` from `/health`: Redis is unavailable. Requests continue through the memory fallback; inspect `docker compose logs redis backend`.
 - Browser CORS failure: ensure `APP_ORIGIN` or `Cors__AllowedOrigins__0` exactly matches scheme, host, and port. Paths and wildcard origins are rejected.
 - Migration failure: run `dotnet tool restore`, generate an idempotent script, and verify PostgreSQL credentials before restarting.
+- AI Coach returns `502`: verify backend-only token/runtime configuration and confirm the GitHub organization or enterprise policy enables Copilot SDK/CLI access. Provider details remain in backend logs only.
 - Stale development dependencies: run `docker compose down --volumes` only when discarding local PostgreSQL/Redis data is acceptable, then rebuild.

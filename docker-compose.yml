@@ -32,6 +32,12 @@ services:
       Persistence__RecommendationSnapshotMinutes: ${RECOMMENDATION_SNAPSHOT_MINUTES:-15}
       Persistence__ApplyMigrations: "true"
       Redis__ConnectionString: redis:6379
+      Copilot__Model: ${COPILOT_MODEL:-auto}
+      Copilot__GitHubToken: ${COPILOT_GITHUB_TOKEN:-}
+      Copilot__RuntimeUrl: ${COPILOT_RUNTIME_URL:-}
+      Copilot__RuntimeConnectionToken: ${COPILOT_RUNTIME_CONNECTION_TOKEN:-}
+      Copilot__BaseDirectory: /tmp/touchline-copilot
+      Copilot__RequestTimeoutSeconds: ${COPILOT_REQUEST_TIMEOUT_SECONDS:-120}
     volumes:
       - ./backend:/src
       - backend_bin:/src/bin

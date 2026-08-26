@@ -23,7 +23,7 @@ describe('CoachPage', () => {
       message: 'Compare Saka with the best same-position replacements.',
       teamId: 7558250,
       respondedAt: '2026-08-26T12:00:00Z',
-      isMocked: true,
+      isMocked: false,
       recommendationType: 'Transfer',
       confidence: 68,
       player: {
@@ -44,7 +44,7 @@ describe('CoachPage', () => {
 
     expect(await screen.findByText('Compare Saka with the best same-position replacements.')).toBeTruthy()
     expect(coachApiMock.sendCoachMessage).toHaveBeenCalledWith({ teamId: 7558250, message: 'Should I sell Saka?' })
-    expect(screen.getAllByText('Mocked response').length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByText('Mocked response')).toBeNull()
     expect(screen.getByText('Transfer')).toBeTruthy()
     expect(screen.getByText('68% confidence')).toBeTruthy()
     expect(screen.getByText('Arsenal · MID · 75% chance')).toBeTruthy()
@@ -62,14 +62,14 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: true, recommendationType: 'Availability', confidence: 78, player: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
   })
 
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: true, recommendationType: 'General', confidence: 35, player: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 

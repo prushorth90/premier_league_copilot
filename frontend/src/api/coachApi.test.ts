@@ -9,7 +9,7 @@ describe('sendCoachMessage', () => {
       message: 'Mock coach reply.',
       teamId: 7558250,
       respondedAt: '2026-08-26T12:00:00Z',
-      isMocked: true,
+      isMocked: false,
       recommendationType: 'Transfer',
       confidence: 68,
       player: {

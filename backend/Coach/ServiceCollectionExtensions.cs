@@ -4,7 +4,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddCoachServices(this IServiceCollection services)
     {
-        services.AddScoped<ICoachService, MockCoachService>();
+        services.AddSingleton<ICopilotChatClient, GitHubCopilotChatClient>();
+        services.AddScoped<ICoachService, CopilotCoachService>();
         return services;
     }
 }

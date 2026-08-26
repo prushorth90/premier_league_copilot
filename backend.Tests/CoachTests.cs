@@ -12,41 +12,51 @@ namespace Backend.Tests;
 public class CoachTests
 {
     [Theory]
-    [InlineData("Saka is injured", "injury concern", CoachRecommendationType.Availability)]
-    [InlineData("Should I sell Saka?", "3 and 5 gameweek projection", CoachRecommendationType.Transfer)]
-    [InlineData("Who can I replace Saka with?", "same-position options", CoachRecommendationType.Replacement)]
-    public async Task MockCoachServiceReturnsSquadAwareReply(
+    [InlineData("Saka is injured", CoachRecommendationType.Availability)]
+    [InlineData("Should I sell Saka?", CoachRecommendationType.Transfer)]
+    [InlineData("Who can I replace Saka with?", CoachRecommendationType.Replacement)]
+    public async Task CopilotCoachServiceSendsStructuredSquadContext(
         string message,
-        string expectedText,
         CoachRecommendationType expectedType)
     {
         var timestamp = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero);
         var dataService = new StubFplDataService();
-        var service = new MockCoachService(dataService, new FixedTimeProvider(timestamp));
+        var copilotClient = new RecordingCopilotChatClient();
+        var service = new CopilotCoachService(dataService, copilotClient, new FixedTimeProvider(timestamp));
 
         var response = await service.ReplyAsync(42, message, CancellationToken.None);
 
         Assert.Equal(42, response.TeamId);
         Assert.Equal(timestamp, response.RespondedAt);
-        Assert.True(response.IsMocked);
-        Assert.Contains(expectedText, response.Message);
+        Assert.False(response.IsMocked);
+        Assert.Equal("Generated Copilot response", response.Message);
         Assert.Equal(expectedType, response.RecommendationType);
         Assert.InRange(response.Confidence, 1m, 100m);
         Assert.Equal("Saka", response.Player?.PlayerName);
         Assert.Equal("Arsenal", response.Player?.TeamName);
         Assert.Equal("MID", response.Player?.Position);
         Assert.Equal(8, dataService.RequestedGameweek);
+        Assert.Contains(message, copilotClient.Prompt);
+        Assert.Contains("\"squad\"", copilotClient.Prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"name\":\"Saka\"", copilotClient.Prompt);
+        Assert.Contains("\"isStarter\":true", copilotClient.Prompt);
+        Assert.Contains("Do not call tools", copilotClient.Prompt);
     }
 
     [Fact]
     public async Task MockCoachServicePropagatesMissingFplTeam()
     {
-        var service = new MockCoachService(new StubFplDataService { TeamIsMissing = true }, TimeProvider.System);
+        var copilotClient = new RecordingCopilotChatClient();
+        var service = new CopilotCoachService(
+            new StubFplDataService { TeamIsMissing = true },
+            copilotClient,
+            TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<FplApiException>(() =>
             service.ReplyAsync(999, "Saka is injured", CancellationToken.None));
 
         Assert.Equal(System.Net.HttpStatusCode.NotFound, exception.StatusCode);
+        Assert.Null(copilotClient.Prompt);
     }
 
     [Fact]
@@ -139,6 +149,17 @@ public class CoachTests
 
         public Task<PlayerHistory> GetPlayerHistoryAsync(int playerId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class RecordingCopilotChatClient : ICopilotChatClient
+    {
+        public string? Prompt { get; private set; }
+
+        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
+        {
+            Prompt = prompt;
+            return Task.FromResult("Generated Copilot response");
+        }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset timestamp) : TimeProvider
