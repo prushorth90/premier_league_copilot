@@ -174,6 +174,12 @@ The lineup recommendation service evaluates the user's existing 15-player squad 
 
 The response includes the formation, ordered starting XI, and bench order. Outfield substitutes are ordered by rank and the reserve goalkeeper occupies the fourth bench slot. Lineup changes identify players moving into the XI and players moving to the bench compared with the user's current selection.
 
+### Transfer recommendations
+
+The transfer recommendation service evaluates same-position replacements for every player in the existing 15-player squad. Candidates must be affordable using the player's FPL selling price plus bank, must not already be owned, must be available or doubtful, must have at least 30 expected minutes, and must leave the squad with no more than three players from any Premier League club. Same-position replacement preserves the required 2 goalkeepers, 5 defenders, 5 midfielders, and 3 forwards.
+
+Recommendations compare projected points over the next 1, 3, and 5 gameweeks. Ranking normalizes the cumulative 3- and 5-gameweek gains to a per-gameweek rate and weights the horizons 50%, 30%, and 20%. Each result includes player out/in details, price difference, horizon gains, weighted gain, a 0-100 confidence score, and explanations for expected points, fixture quality, expected minutes, availability, and budget.
+
 ### FPL data client
 
 `IFplDataService` provides typed, asynchronous access to these public FPL resources:
@@ -200,6 +206,7 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/fpl/fixtures` | Fixtures with team names, scores, kickoff, and difficulty |
 | `GET` | `/api/recommendations/{teamId}/captain` | Ranked captain, vice captain, alternatives, and factor explanations |
 | `GET` | `/api/recommendations/{teamId}/lineup` | Best legal starting XI, formation, bench order, and current-lineup changes |
+| `GET` | `/api/recommendations/{teamId}/transfers?limit=20` | Valid transfer upgrades ranked across 1, 3, and 5 gameweeks |
 
 Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
 

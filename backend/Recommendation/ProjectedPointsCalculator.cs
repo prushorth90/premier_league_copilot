@@ -95,9 +95,13 @@ public sealed class ProjectedPointsCalculator(
             .Take(5)
             .ToArray();
 
-        return recentAppearances.Length == 0
-            ? 60m
-            : Math.Clamp(recentAppearances.Average(item => (decimal)item.Minutes), 0m, 90m);
+        if (recentAppearances.Length > 0)
+        {
+            return Math.Clamp(recentAppearances.Average(item => (decimal)item.Minutes), 0m, 90m);
+        }
+
+        var latestSeason = history.PreviousSeasons.LastOrDefault(season => season.Minutes > 0);
+        return latestSeason is null ? 0m : Math.Clamp(latestSeason.Minutes / 38m, 0m, 90m);
     }
 
     private static decimal CalculateHistoricalPointsPer90(PlayerHistory history)

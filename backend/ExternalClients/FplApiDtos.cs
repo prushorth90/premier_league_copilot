@@ -102,7 +102,9 @@ public sealed record FplPickDto(
     int Multiplier,
     bool IsCaptain,
     bool IsViceCaptain,
-    int ElementType);
+    int ElementType,
+    int? PurchasePrice = null,
+    int? SellingPrice = null);
 
 public sealed record FplPlayerSummaryDto(
     IReadOnlyList<FplPlayerFixtureDto> Fixtures,

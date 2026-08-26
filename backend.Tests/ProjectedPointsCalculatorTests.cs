@@ -89,6 +89,35 @@ public class ProjectedPointsCalculatorTests
             item.Factor == "Historical FPL points" && item.Contribution == 1.50m);
     }
 
+    [Fact]
+    public void CalculateUsesLatestSeasonMinutesWhenCurrentAppearancesAreUnavailable()
+    {
+        var history = CreateHistory(
+            fixtures: [CreateFixture(1, 2, true, 3)],
+            currentSeason: [],
+            previousSeasons: [CreateSeason("2025/26", 120, 2280)]);
+
+        var result = CreateCalculator().Calculate(CreatePlayer(), history);
+
+        Assert.Equal(60m, result.ExpectedMinutes);
+        Assert.Contains(
+            result.Horizons[0].Factors,
+            factor => factor.Factor == "Expected playing time" && factor.Contribution == 1m);
+    }
+
+    [Fact]
+    public void CalculateUsesZeroExpectedMinutesWithoutPlayingTimeEvidence()
+    {
+        var history = CreateHistory(fixtures: [CreateFixture(1, 2, true, 3)], currentSeason: [], previousSeasons: []);
+
+        var result = CreateCalculator().Calculate(CreatePlayer(), history);
+
+        Assert.Equal(0m, result.ExpectedMinutes);
+        Assert.Contains(
+            result.Horizons[0].Factors,
+            factor => factor.Factor == "Expected playing time" && factor.Contribution == 0m);
+    }
+
     private static ProjectedPointsCalculator CreateCalculator() => new(
         [
             new PositionFactor(),

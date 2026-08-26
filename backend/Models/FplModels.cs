@@ -83,7 +83,15 @@ public sealed record SquadGameweekSummary(
     int TransferCost,
     int BenchPoints);
 
-public sealed record SquadPick(int PlayerId, int Position, int Multiplier, bool IsCaptain, bool IsViceCaptain, int PositionId);
+public sealed record SquadPick(
+    int PlayerId,
+    int Position,
+    int Multiplier,
+    bool IsCaptain,
+    bool IsViceCaptain,
+    int PositionId,
+    int? PurchasePrice = null,
+    int? SellingPrice = null);
 
 public sealed record PlayerHistory(
     IReadOnlyList<PlayerFixture> Fixtures,

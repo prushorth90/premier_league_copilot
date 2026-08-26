@@ -4,6 +4,7 @@ using Backend.Recommendation.Factors;
 using Backend.Recommendation.Captain;
 using Backend.Recommendation.Captain.Factors;
 using Backend.Recommendation.Lineup;
+using Backend.Recommendation.Transfer;
 
 public static class ServiceCollectionExtensions
 {
@@ -29,6 +30,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFplFormationValidator, FplFormationValidator>();
         services.AddSingleton<ILineupOptimizer, LineupOptimizer>();
         services.AddScoped<ILineupRecommendationService, LineupRecommendationService>();
+        services.AddSingleton<ITransferRecommendationEngine, TransferRecommendationEngine>();
+        services.AddScoped<ITransferRecommendationService, TransferRecommendationService>();
 
         return services;
     }

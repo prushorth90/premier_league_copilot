@@ -40,7 +40,7 @@ public sealed class FplDataService(
 
     public Task<Squad> GetManagerPicksAsync(int managerId, int gameweek, CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            $"manager:{managerId}:gameweek:{gameweek}:picks",
+            $"manager:{managerId}:gameweek:{gameweek}:picks:v2",
             TimeSpan.FromMinutes(fplOptions.SquadCacheMinutes),
             async token => Map(await fplApiClient.GetManagerPicksAsync(managerId, gameweek, token)),
             cancellationToken);
@@ -108,7 +108,7 @@ public sealed class FplDataService(
     private static Squad Map(FplSquadPicksDto source) => new(
         source.ActiveChip,
         new SquadGameweekSummary(source.EntryHistory.Event, source.EntryHistory.Points, source.EntryHistory.TotalPoints, source.EntryHistory.OverallRank, source.EntryHistory.Bank, source.EntryHistory.Value, source.EntryHistory.EventTransfers, source.EntryHistory.EventTransfersCost, source.EntryHistory.PointsOnBench),
-        source.Picks.Select(item => new SquadPick(item.Element, item.Position, item.Multiplier, item.IsCaptain, item.IsViceCaptain, item.ElementType)).ToArray());
+        source.Picks.Select(item => new SquadPick(item.Element, item.Position, item.Multiplier, item.IsCaptain, item.IsViceCaptain, item.ElementType, item.PurchasePrice, item.SellingPrice)).ToArray());
 
     private static PlayerHistory Map(FplPlayerSummaryDto source) => new(
         source.Fixtures.Select(item => new PlayerFixture(item.Id, item.Event, item.EventName, item.KickoffTime, item.IsHome, item.TeamH, item.TeamA, item.Difficulty)).ToArray(),
