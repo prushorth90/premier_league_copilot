@@ -1,3 +1,6 @@
 namespace Backend.DTOs;
 
-public sealed record HealthResponse(string Status, DateTimeOffset Timestamp);
+public sealed record HealthResponse(
+	string Status,
+	DateTimeOffset Timestamp,
+	IReadOnlyDictionary<string, string> Dependencies);

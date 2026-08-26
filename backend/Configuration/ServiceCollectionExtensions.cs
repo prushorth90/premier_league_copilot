@@ -39,6 +39,27 @@ public static class ServiceCollectionExtensions
                 $"{PersistenceOptions.SectionName}:RecommendationSnapshotMinutes must be greater than zero")
             .ValidateOnStart();
 
+        services.AddOptions<AppCorsOptions>()
+            .Bind(configuration.GetSection(AppCorsOptions.SectionName))
+            .Validate(options => options.AllowedOrigins.Length > 0,
+                $"{AppCorsOptions.SectionName}:AllowedOrigins must contain at least one origin")
+            .Validate(options => options.AllowedOrigins.All(origin =>
+                    Uri.TryCreate(origin, UriKind.Absolute, out var uri) &&
+                    uri.Scheme is "http" or "https" &&
+                    uri.AbsolutePath == "/" &&
+                    string.IsNullOrEmpty(uri.Query) &&
+                    string.IsNullOrEmpty(uri.Fragment)),
+                $"{AppCorsOptions.SectionName}:AllowedOrigins entries must be HTTP(S) origins without paths")
+            .ValidateOnStart();
+
+        services.AddOptions<SecurityOptions>()
+            .Bind(configuration.GetSection(SecurityOptions.SectionName))
+            .Validate(options => options.RequestLimitPerMinute is >= 10 and <= 10_000,
+                $"{SecurityOptions.SectionName}:RequestLimitPerMinute must be between 10 and 10000")
+            .Validate(options => options.MaxRequestBodyKilobytes is >= 1 and <= 1024,
+                $"{SecurityOptions.SectionName}:MaxRequestBodyKilobytes must be between 1 and 1024")
+            .ValidateOnStart();
+
         return services;
     }
 }

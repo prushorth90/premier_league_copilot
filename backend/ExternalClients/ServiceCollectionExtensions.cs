@@ -1,5 +1,6 @@
 using Backend.Configuration;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace Backend.ExternalClients;
 
@@ -15,7 +16,12 @@ public static class ServiceCollectionExtensions
         services.AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
             .Configure<IOptions<RedisOptions>>((cacheOptions, redisOptions) =>
             {
-                cacheOptions.Configuration = redisOptions.Value.ConnectionString;
+                var configuration = ConfigurationOptions.Parse(redisOptions.Value.ConnectionString);
+                configuration.AbortOnConnectFail = false;
+                configuration.ConnectRetry = 1;
+                configuration.ConnectTimeout = 1_000;
+                configuration.SyncTimeout = 1_000;
+                cacheOptions.ConfigurationOptions = configuration;
                 cacheOptions.InstanceName = "fpl:";
             });
 

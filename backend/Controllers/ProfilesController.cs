@@ -22,6 +22,11 @@ public sealed class ProfilesController(IProfileRepository profileRepository) : C
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LocalProfileResponse>> GetAsync(Guid profileId, CancellationToken cancellationToken)
     {
+        if (profileId == Guid.Empty)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid profile ID.");
+        }
+
         var profile = await profileRepository.GetAsync(profileId, cancellationToken);
         return profile is null
             ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Profile not found.")
@@ -53,7 +58,7 @@ public sealed class ProfilesController(IProfileRepository profileRepository) : C
         UpdateSelectedTeamRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.SelectedFplTeamId <= 0)
+        if (profileId == Guid.Empty || request.SelectedFplTeamId <= 0)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid FPL team ID.");
         }
@@ -72,6 +77,11 @@ public sealed class ProfilesController(IProfileRepository profileRepository) : C
         string key,
         CancellationToken cancellationToken)
     {
+        if (profileId == Guid.Empty || !IsValidSettingKey(key))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid profile ID or setting key.");
+        }
+
         var value = await profileRepository.GetSettingAsync(profileId, key, cancellationToken);
         return value is null
             ? Problem(statusCode: StatusCodes.Status404NotFound, title: "Setting not found.")
@@ -88,7 +98,7 @@ public sealed class ProfilesController(IProfileRepository profileRepository) : C
         SetApplicationSettingRequest request,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(key) || key.Length > 100)
+        if (profileId == Guid.Empty || !IsValidSettingKey(key) || request.Value.ValueKind == System.Text.Json.JsonValueKind.Undefined)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, title: "Invalid setting key.");
         }
@@ -98,4 +108,9 @@ public sealed class ProfilesController(IProfileRepository profileRepository) : C
             ? Ok(new ApplicationSettingResponse(key, request.Value))
             : Problem(statusCode: StatusCodes.Status404NotFound, title: "Profile not found.");
     }
+
+    private static bool IsValidSettingKey(string key) =>
+        !string.IsNullOrWhiteSpace(key) &&
+        key.Length <= 100 &&
+        key.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.');
 }

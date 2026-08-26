@@ -89,6 +89,13 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
+      - name: Validate production Compose configuration
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          REDIS_PASSWORD: ci-redis-password
+          APP_ORIGIN: https://fpl.example.test
+        run: docker compose -f compose.production.yml config --quiet
+
       - name: Build frontend image
         uses: docker/build-push-action@v6
         with:

@@ -11,7 +11,9 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.AddDbContextPool<ApplicationDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("PostgreSQL")));
+            options.UseNpgsql(
+                configuration.GetConnectionString("PostgreSQL"),
+                postgres => postgres.EnableRetryOnFailure(5, TimeSpan.FromSeconds(5), null)));
         services.AddScoped<IProfileRepository, ProfileRepository>();
         services.AddScoped<IRecommendationStore, RecommendationStore>();
         return services;

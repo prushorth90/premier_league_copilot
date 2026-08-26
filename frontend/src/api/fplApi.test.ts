@@ -65,13 +65,32 @@ describe('verifyTeam', () => {
     expect(lineupRecommendation.formation).toBe('3-4-3')
     expect(transferRecommendations.recommendations).toEqual([])
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'http://localhost:5082/api/fpl/team/42',
-      'http://localhost:5082/api/fpl/team/42/squad',
-      'http://localhost:5082/api/fpl/players',
-      'http://localhost:5082/api/fpl/fixtures',
-      'http://localhost:5082/api/recommendations/42/captain',
-      'http://localhost:5082/api/recommendations/42/lineup',
-      'http://localhost:5082/api/recommendations/42/transfers?limit=10',
+      '/api/fpl/team/42',
+      '/api/fpl/team/42/squad',
+      '/api/fpl/players',
+      '/api/fpl/fixtures',
+      '/api/recommendations/42/captain',
+      '/api/recommendations/42/lineup',
+      '/api/recommendations/42/transfers?limit=10',
     ])
+  })
+
+  it('uses safe Problem Details messages and rejects malformed success responses', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        title: 'Too many requests.',
+        detail: 'Wait briefly before trying again.',
+      }), { status: 429, headers: { 'Content-Type': 'application/problem+json' } }))
+      .mockResolvedValueOnce(new Response('not-json', { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getPlayers()).rejects.toMatchObject({
+      message: 'Wait briefly before trying again.',
+      status: 429,
+    })
+    await expect(getFixtures()).rejects.toMatchObject({
+      message: 'The backend returned an invalid response.',
+      status: 200,
+    })
   })
 })

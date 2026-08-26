@@ -1,6 +1,6 @@
 import type { CaptainRecommendation, FplFixture, FplPlayer, FplSquad, FplTeam, LineupRecommendation, TransferRecommendationResponse } from '../models/fpl'
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5082'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export class TeamVerificationError extends Error {
   constructor(message: string) {
@@ -19,6 +19,11 @@ export class ApiError extends Error {
   }
 }
 
+interface ProblemDetailsResponse {
+  title?: string
+  detail?: string
+}
+
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   let response: Response
 
@@ -35,15 +40,34 @@ async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   }
 
   if (!response.ok) {
+    const problem = await readProblemDetails(response)
     throw new ApiError(
-      response.status === 404
-        ? 'The requested FPL data was not found.'
-        : 'FPL data is temporarily unavailable. Try again shortly.',
+      problem?.detail ?? problem?.title ?? statusMessage(response.status),
       response.status,
     )
   }
 
-  return response.json() as Promise<T>
+  try {
+    return await response.json() as T
+  } catch {
+    throw new ApiError('The backend returned an invalid response.', response.status)
+  }
+}
+
+async function readProblemDetails(response: Response): Promise<ProblemDetailsResponse | null> {
+  try {
+    return await response.clone().json() as ProblemDetailsResponse
+  } catch {
+    return null
+  }
+}
+
+function statusMessage(status: number) {
+  if (status === 404) return 'The requested FPL data was not found.'
+  if (status === 429) return 'Too many requests. Wait briefly and try again.'
+  if (status === 502) return 'Fantasy Premier League is temporarily unavailable.'
+  if (status === 503) return 'Application services are temporarily unavailable.'
+  return status >= 500 ? 'The backend is temporarily unavailable. Try again shortly.' : 'The request could not be completed.'
 }
 
 export function getTeam(teamId: number, signal?: AbortSignal) {

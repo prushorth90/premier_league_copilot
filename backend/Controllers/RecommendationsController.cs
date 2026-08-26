@@ -36,16 +36,12 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be a positive integer.");
         }
 
-        const string kind = "captain";
-        var cached = await recommendationStore.GetCurrentAsync<CaptainRecommendation>(teamId, kind, cancellationToken);
-        if (cached is not null)
-        {
-            return Ok(cached);
-        }
-
-        var recommendation = await captainRecommendationService.GetRecommendationAsync(teamId, cancellationToken);
-        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
-        return Ok(recommendation);
+        return Ok(await GetOrCreateAsync(
+            teamId,
+            "captain",
+            token => captainRecommendationService.GetRecommendationAsync(teamId, token),
+            recommendation => recommendation.CalculatedAt,
+            cancellationToken));
     }
 
     [HttpGet("{teamId:int}/lineup", Name = "GetLineupRecommendation")]
@@ -65,16 +61,12 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be a positive integer.");
         }
 
-        const string kind = "lineup";
-        var cached = await recommendationStore.GetCurrentAsync<LineupRecommendation>(teamId, kind, cancellationToken);
-        if (cached is not null)
-        {
-            return Ok(cached);
-        }
-
-        var recommendation = await lineupRecommendationService.GetRecommendationAsync(teamId, cancellationToken);
-        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
-        return Ok(recommendation);
+        return Ok(await GetOrCreateAsync(
+            teamId,
+            "lineup",
+            token => lineupRecommendationService.GetRecommendationAsync(teamId, token),
+            recommendation => recommendation.CalculatedAt,
+            cancellationToken));
     }
 
     [HttpGet("{teamId:int}/transfers", Name = "GetTransferRecommendations")]
@@ -95,16 +87,12 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be positive and limit must be between 1 and 50.");
         }
 
-        var kind = $"transfers:{limit}";
-        var cached = await recommendationStore.GetCurrentAsync<TransferRecommendationResponse>(teamId, kind, cancellationToken);
-        if (cached is not null)
-        {
-            return Ok(cached);
-        }
-
-        var recommendation = await transferRecommendationService.GetRecommendationsAsync(teamId, limit, cancellationToken);
-        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
-        return Ok(recommendation);
+        return Ok(await GetOrCreateAsync(
+            teamId,
+            $"transfers:{limit}",
+            token => transferRecommendationService.GetRecommendationsAsync(teamId, limit, token),
+            recommendation => recommendation.CalculatedAt,
+            cancellationToken));
     }
 
     [HttpGet("{teamId:int}/history", Name = "GetRecommendationHistory")]
@@ -126,5 +114,24 @@ public sealed class RecommendationsController(
 
         var history = await recommendationStore.GetHistoryAsync(teamId, kind, limit, cancellationToken);
         return Ok(history.Select(RecommendationHistoryResponse.From).ToArray());
+    }
+
+    private async Task<T> GetOrCreateAsync<T>(
+        int teamId,
+        string kind,
+        Func<CancellationToken, Task<T>> factory,
+        Func<T, DateTimeOffset> getCalculatedAt,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        var cached = await recommendationStore.GetCurrentAsync<T>(teamId, kind, cancellationToken);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        var recommendation = await factory(cancellationToken);
+        await recommendationStore.StoreAsync(teamId, kind, recommendation, getCalculatedAt(recommendation), cancellationToken);
+        return recommendation;
     }
 }

@@ -31,6 +31,7 @@ Start the complete development stack from the repository root:
 
 ```bash
 cp .env.example .env
+# Replace POSTGRES_PASSWORD in .env before first startup.
 docker compose up --build
 ```
 
@@ -43,7 +44,7 @@ The containers expose:
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
 
-The frontend and backend source folders are mounted into their containers. Vite hot module replacement and `dotnet watch` apply code changes while the stack is running.
+Development Compose uses `frontend/Dockerfile.dev` and `backend/Dockerfile.dev`. The source folders are mounted into their containers; Vite hot module replacement and `dotnet watch` apply code changes while the stack is running. PostgreSQL and Redis ports are exposed for local inspection only.
 
 Stop the stack while preserving database data:
 
@@ -58,6 +59,59 @@ docker compose down --volumes
 ```
 
 View service logs with `docker compose logs -f SERVICE`, where `SERVICE` is `frontend`, `backend`, `postgres`, or `redis`.
+
+Check container and dependency health with:
+
+```bash
+docker compose ps
+curl --fail http://localhost:5082/health
+```
+
+The health response is `Healthy` when PostgreSQL and Redis respond, `Degraded` when Redis is unavailable but the memory fallback is active, and `503 Unhealthy` when essential PostgreSQL storage is unavailable.
+
+## Production deployment
+
+The default Dockerfiles are multi-stage production builds. ASP.NET runs from the Alpine runtime image as the built-in non-root user, and React is served by unprivileged nginx. Application filesystems are read-only, Linux capabilities are dropped, and only the frontend port is published.
+
+Create an untracked production environment file with strong random secrets:
+
+```bash
+cp .env.example .env.production
+```
+
+Set at minimum:
+
+```dotenv
+POSTGRES_PASSWORD=<strong-random-password>
+REDIS_PASSWORD=<different-strong-random-password>
+APP_ORIGIN=https://fpl.example.com
+APP_PORT=8080
+```
+
+Start the hardened stack:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml up -d --build --wait
+```
+
+Open `http://localhost:8080` for a local production smoke test. In an internet deployment, terminate TLS at a trusted ingress or load balancer and forward traffic to the frontend container. Set `APP_ORIGIN` to the exact public HTTPS origin. Set `Security__UseHttpsRedirection=true` only when ASP.NET itself has a correctly configured HTTPS endpoint; it remains false behind the nginx/ingress HTTP hop.
+
+Production nginx serves SPA routes, proxies `/api` and `/health` to ASP.NET, applies browser security headers, and caches fingerprinted assets. ASP.NET applies API security headers, request-size limits, per-client rate limiting, strict CORS, sanitized Problem Details, and structured request timing logs. Swagger is disabled outside Development.
+
+Stop production while preserving data:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml down
+```
+
+Back up PostgreSQL and Redis volumes before upgrades. A logical PostgreSQL backup can be created with:
+
+```bash
+docker compose --env-file .env.production -f compose.production.yml \
+	exec -T postgres pg_dump -U fpl -d fpl > fpl-backup.sql
+```
+
+Never commit `.env`, `.env.production`, database dumps, tokens, or real connection strings. The repository includes placeholders only; `.gitignore` excludes environment files and build artifacts.
 
 ## Continuous integration
 
@@ -101,7 +155,7 @@ npm install
 npm run dev
 ```
 
-The frontend starts at `http://localhost:5173`. It can run without the backend.
+The frontend starts at `http://localhost:5173`. For standalone Vite development, set `VITE_API_BASE_URL=http://localhost:5082` in `frontend/.env`. Production uses same-origin `/api` requests through nginx and does not embed a backend host in the JavaScript bundle.
 
 Useful checks:
 
@@ -120,7 +174,7 @@ The Transfers page shows live bank and free-transfer availability, then ranks th
 
 The Recommendations page combines captaincy, the legal starting XI and bench order, projected XI totals over 1/3/5 gameweeks, the best single and two-transfer moves, and recurring sale candidates into one decision dashboard. Factor explanations remain visible, and transfer confidence is shown as high confidence at 80% or above and speculative below that threshold.
 
-Set `VITE_API_BASE_URL` in `frontend/.env` when the API is not running at `http://localhost:5082`.
+Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
 ## Backend
 
@@ -145,6 +199,8 @@ dotnet build
 ```
 
 Swagger is enabled when `ASPNETCORE_ENVIRONMENT` is set to `Development`.
+
+The backend requires a valid `ConnectionStrings__PostgreSQL` value. The checked-in `appsettings.json` contains no password; supply credentials through an ignored environment file, secret manager, or deployment platform.
 
 ### Backend structure
 
@@ -272,8 +328,33 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/profiles/{profileId}/settings/{key}` | Read a typed JSON application setting |
 | `PUT` | `/api/profiles/{profileId}/settings/{key}` | Create or replace a typed JSON application setting |
 
-Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
+Team IDs must be positive integers. Invalid inputs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, throttled clients return `429 Too Many Requests`, unavailable upstream FPL data returns `502 Bad Gateway`, and unavailable essential storage returns `503 Service Unavailable`. All errors use sanitized Problem Details JSON with a trace ID. Interactive schemas and response contracts are available in Development Swagger at `http://localhost:5082/swagger`.
 
 ## Environment variables
 
 Example values live in `.env.example`, `frontend/.env.example`, and `backend/.env.example`. Local `.env` files are ignored by Git.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `POSTGRES_PASSWORD` | Production | PostgreSQL password; no production default |
+| `REDIS_PASSWORD` | Production | Redis password; no production default |
+| `POSTGRES_DB` / `POSTGRES_USER` | No | Database name/user, both default to `fpl` |
+| `APP_ORIGIN` | Production | Exact browser origin allowed by CORS |
+| `APP_PORT` | No | Published production frontend port, default `8080` |
+| `ConnectionStrings__PostgreSQL` | Backend | Full EF Core PostgreSQL connection string |
+| `Redis__ConnectionString` | Backend | StackExchange.Redis connection string |
+| `Cors__AllowedOrigins__0` | Backend | First exact allowed browser origin |
+| `Persistence__ApplyMigrations` | No | Apply pending EF migrations at startup |
+| `Persistence__RecommendationSnapshotMinutes` | No | PostgreSQL recommendation snapshot lifetime |
+| `Security__RequestLimitPerMinute` | No | Per-client API request limit, default `120` |
+| `Security__MaxRequestBodyKilobytes` | No | Kestrel request-body limit, default `64` |
+| `Security__UseHttpsRedirection` | No | Enable only when ASP.NET owns HTTPS |
+| `VITE_API_BASE_URL` | Development only | Cross-origin backend base URL for standalone Vite |
+
+## Troubleshooting
+
+- `503` from `/health`: inspect `dependencies.postgresql`; verify the connection string and `docker compose logs postgres backend`.
+- `Degraded` from `/health`: Redis is unavailable. Requests continue through the memory fallback; inspect `docker compose logs redis backend`.
+- Browser CORS failure: ensure `APP_ORIGIN` or `Cors__AllowedOrigins__0` exactly matches scheme, host, and port. Paths and wildcard origins are rejected.
+- Migration failure: run `dotnet tool restore`, generate an idempotent script, and verify PostgreSQL credentials before restarting.
+- Stale development dependencies: run `docker compose down --volumes` only when discarding local PostgreSQL/Redis data is acceptable, then rebuild.

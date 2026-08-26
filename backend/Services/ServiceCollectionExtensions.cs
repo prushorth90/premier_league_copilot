@@ -6,7 +6,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
-        services.AddSingleton<IHealthStatusService, HealthStatusService>();
+        services.AddScoped<IHealthStatusService, HealthStatusService>();
         services.AddMemoryCache();
         services.AddSingleton<IFplCachePolicyProvider, FplCachePolicyProvider>();
         services.AddSingleton<IFplCacheCoordinator, FplCacheCoordinator>();
