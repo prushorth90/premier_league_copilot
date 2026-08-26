@@ -114,6 +114,8 @@ public class ProjectedPointsCalculatorTests
         5,
         6m,
         10m,
+        0.4m,
+        0.2m,
         status,
         string.Empty,
         chanceOfPlaying);

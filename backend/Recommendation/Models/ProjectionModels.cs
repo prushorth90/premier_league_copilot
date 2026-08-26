@@ -6,6 +6,7 @@ public sealed record PlayerProjection(
     int PlayerId,
     string PlayerName,
     DateTimeOffset CalculatedAt,
+    decimal ExpectedMinutes,
     IReadOnlyList<ProjectionHorizon> Horizons);
 
 public sealed record ProjectionHorizon(

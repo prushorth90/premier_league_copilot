@@ -1,6 +1,8 @@
 namespace Backend.Recommendation;
 
 using Backend.Recommendation.Factors;
+using Backend.Recommendation.Captain;
+using Backend.Recommendation.Captain.Factors;
 
 public static class ServiceCollectionExtensions
 {
@@ -16,6 +18,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProjectionFactor, AvailabilityFactor>();
         services.AddSingleton<IProjectedPointsCalculator, ProjectedPointsCalculator>();
         services.AddScoped<IProjectedPointsService, ProjectedPointsService>();
+        services.AddSingleton<ICaptainFactor, ProjectedPointsCaptainFactor>();
+        services.AddSingleton<ICaptainFactor, ExpectedMinutesCaptainFactor>();
+        services.AddSingleton<ICaptainFactor, FixtureQualityCaptainFactor>();
+        services.AddSingleton<ICaptainFactor, AttackingPotentialCaptainFactor>();
+        services.AddSingleton<ICaptainFactor, AvailabilityCaptainFactor>();
+        services.AddSingleton<ICaptainRankingCalculator, CaptainRankingCalculator>();
+        services.AddScoped<ICaptainRecommendationService, CaptainRecommendationService>();
 
         return services;
     }

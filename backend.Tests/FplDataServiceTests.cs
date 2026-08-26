@@ -46,7 +46,7 @@ public class FplDataServiceTests
                 [],
                 [],
                 [],
-                [new FplPlayerDto(1, 100, "Test", "Player", "Test Player", 1, 3, 50, 0, 0, "6.5", "12.3", "a", "", null)]));
+                [new FplPlayerDto(1, 100, "Test", "Player", "Test Player", 1, 3, 50, 0, 0, "6.5", "12.3", 0.4m, 0.2m, "a", "", null)]));
         }
 
         public Task<IReadOnlyList<FplFixtureDto>> GetFixturesAsync(CancellationToken cancellationToken) =>

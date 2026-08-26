@@ -164,6 +164,10 @@ The initial deterministic formula is additive and runs these isolated factors in
 
 Scores are floored at zero and rounded to two decimal places. Results include fixture-level and horizon-level factor contributions with plain-language explanations, plus an explicit rounding adjustment when required so every breakdown reconciles exactly to its projected score.
 
+### Captain recommendations
+
+The captain recommendation service ranks only the user's starting XI for the current gameweek. It combines projected points, expected minutes, fixture quality, position-adjusted expected goals and assists, and availability into a deterministic score. The response includes the best captain, vice captain, three alternatives, and every factor's score and plain-language explanation.
+
 ### FPL data client
 
 `IFplDataService` provides typed, asynchronous access to these public FPL resources:
@@ -188,6 +192,7 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/fpl/team/{teamId}/squad` | Current gameweek squad with enriched player details |
 | `GET` | `/api/fpl/players` | All players with team, position, price, availability, and points |
 | `GET` | `/api/fpl/fixtures` | Fixtures with team names, scores, kickoff, and difficulty |
+| `GET` | `/api/recommendations/{teamId}/captain` | Ranked captain, vice captain, alternatives, and factor explanations |
 
 Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
 

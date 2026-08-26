@@ -50,7 +50,7 @@ public class ProjectionFactorTests
 
     private static ProjectionContext CreateContext(int positionId = 3, decimal form = 6m)
     {
-        var player = new Player(1, 1, "Test", "Player", "Test", 1, positionId, 50, 0, 0, form, 0, "a", "", null);
+        var player = new Player(1, 1, "Test", "Player", "Test", 1, positionId, 50, 0, 0, form, 0, 0.4m, 0.2m, "a", "", null);
         return new(player, new PlayerHistory([], [], []), 90m, 6m);
     }
 

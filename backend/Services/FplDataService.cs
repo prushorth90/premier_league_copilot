@@ -19,7 +19,7 @@ public sealed class FplDataService(
 
     public Task<BootstrapData> GetBootstrapDataAsync(CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            "bootstrap-static:v2",
+            "bootstrap-static:v3",
             TimeSpan.FromMinutes(fplOptions.BootstrapCacheMinutes),
             async token => Map(await fplApiClient.GetBootstrapStaticAsync(token)),
             cancellationToken);
@@ -99,7 +99,7 @@ public sealed class FplDataService(
         source.Events.Select(item => new Gameweek(item.Id, item.Name, item.DeadlineTime, item.Finished, item.IsCurrent, item.IsNext, item.AverageEntryScore, item.HighestScore)).ToArray(),
         source.Teams.Select(item => new Team(item.Id, item.Code, item.Name, item.ShortName, item.Strength, item.StrengthOverallHome, item.StrengthOverallAway)).ToArray(),
         source.ElementTypes.Select(item => new PlayerPosition(item.Id, item.SingularName, item.SingularNameShort, item.SquadSelect, item.SquadMinPlay, item.SquadMaxPlay)).ToArray(),
-        source.Elements.Select(item => new Player(item.Id, item.Code, item.FirstName, item.SecondName, item.WebName, item.Team, item.ElementType, item.NowCost, item.TotalPoints, item.EventPoints, ParseDecimal(item.Form), ParseDecimal(item.SelectedByPercent), item.Status, item.News, item.ChanceOfPlayingNextRound)).ToArray());
+        source.Elements.Select(item => new Player(item.Id, item.Code, item.FirstName, item.SecondName, item.WebName, item.Team, item.ElementType, item.NowCost, item.TotalPoints, item.EventPoints, ParseDecimal(item.Form), ParseDecimal(item.SelectedByPercent), item.ExpectedGoalsPer90, item.ExpectedAssistsPer90, item.Status, item.News, item.ChanceOfPlayingNextRound)).ToArray());
 
     private static Fixture Map(FplFixtureDto item) => new(item.Id, item.Code, item.Event, item.KickoffTime, item.Finished, item.Started, item.TeamH, item.TeamA, item.TeamHScore, item.TeamAScore, item.TeamHDifficulty, item.TeamADifficulty);
 

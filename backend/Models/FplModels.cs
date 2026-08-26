@@ -33,6 +33,8 @@ public sealed record Player(
     int GameweekPoints,
     decimal Form,
     decimal OwnershipPercentage,
+    decimal ExpectedGoalsPer90,
+    decimal ExpectedAssistsPer90,
     string Status,
     string News,
     int? ChanceOfPlayingNextRound);

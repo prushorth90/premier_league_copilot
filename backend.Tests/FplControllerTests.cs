@@ -145,7 +145,7 @@ public class FplControllerTests
             new Team(2, 8, "Chelsea", "CHE", 4, 4, 4)
         ],
         [new PlayerPosition(3, "Midfielder", "MID", 5, 2, 5)],
-        [new Player(10, 100, "Test", "Player", "Test Player", 1, 3, 55, 20, 5, 6.5m, 12.3m, "a", "", null)]);
+        [new Player(10, 100, "Test", "Player", "Test Player", 1, 3, 55, 20, 5, 6.5m, 12.3m, 0.4m, 0.2m, "a", "", null)]);
 
     private sealed class StubFplDataService : IFplDataService
     {

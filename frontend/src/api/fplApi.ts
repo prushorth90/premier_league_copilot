@@ -1,4 +1,4 @@
-import type { FplFixture, FplPlayer, FplSquad, FplTeam } from '../models/fpl'
+import type { CaptainRecommendation, FplFixture, FplPlayer, FplSquad, FplTeam } from '../models/fpl'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5082'
 
@@ -60,6 +60,10 @@ export function getPlayers(signal?: AbortSignal) {
 
 export function getFixtures(signal?: AbortSignal) {
   return request<FplFixture[]>('/api/fpl/fixtures', signal)
+}
+
+export function getCaptainRecommendation(teamId: number, signal?: AbortSignal) {
+  return request<CaptainRecommendation>(`/api/recommendations/${teamId}/captain`, signal)
 }
 
 export async function verifyTeam(teamId: number, signal?: AbortSignal): Promise<FplTeam> {

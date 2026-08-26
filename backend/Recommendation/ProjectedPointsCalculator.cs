@@ -34,7 +34,7 @@ public sealed class ProjectedPointsCalculator(
             .Select(horizon => CalculateHorizon(horizon, gameweeks, fixtureProjections))
             .ToArray();
 
-        return new(player.Id, player.DisplayName, timeProvider.GetUtcNow(), horizonProjections);
+        return new(player.Id, player.DisplayName, timeProvider.GetUtcNow(), context.ExpectedMinutes, horizonProjections);
     }
 
     private FixtureProjection CalculateFixture(ProjectionContext context, PlayerFixture fixture)

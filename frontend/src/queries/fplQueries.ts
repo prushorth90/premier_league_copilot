@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getFixtures, getPlayers, getSquad, getTeam } from '../api/fplApi'
+import { getCaptainRecommendation, getFixtures, getPlayers, getSquad, getTeam } from '../api/fplApi'
 
 const minute = 60_000
 
@@ -9,6 +9,7 @@ export const fplQueryKeys = {
   squad: (teamId: number | null) => [...fplQueryKeys.all, 'squad', teamId] as const,
   players: () => [...fplQueryKeys.all, 'players'] as const,
   fixtures: () => [...fplQueryKeys.all, 'fixtures'] as const,
+  captainRecommendation: (teamId: number | null) => [...fplQueryKeys.all, 'recommendations', 'captain', teamId] as const,
 }
 
 export function useFplTeamQuery(teamId: number | null) {
@@ -41,6 +42,15 @@ export function useFplFixturesQuery() {
   return useQuery({
     queryKey: fplQueryKeys.fixtures(),
     queryFn: ({ signal }) => getFixtures(signal),
+    staleTime: 15 * minute,
+  })
+}
+
+export function useCaptainRecommendationQuery(teamId: number | null) {
+  return useQuery({
+    queryKey: fplQueryKeys.captainRecommendation(teamId),
+    queryFn: ({ signal }) => getCaptainRecommendation(teamId!, signal),
+    enabled: teamId !== null,
     staleTime: 15 * minute,
   })
 }

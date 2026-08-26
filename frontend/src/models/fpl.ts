@@ -91,3 +91,28 @@ export interface FplSquadPick {
   gameweekPoints: number
   nextOpponent: string | null
 }
+
+export interface CaptainRecommendation {
+  teamId: number
+  gameweek: number
+  calculatedAt: string
+  bestCaptain: CaptainCandidate
+  viceCaptain: CaptainCandidate
+  alternatives: CaptainCandidate[]
+}
+
+export interface CaptainCandidate {
+  playerId: number
+  playerName: string
+  teamName: string
+  position: string
+  projectedPoints: number
+  rankingScore: number
+  factors: CaptainFactorBreakdown[]
+}
+
+export interface CaptainFactorBreakdown {
+  factor: string
+  score: number
+  explanation: string
+}
