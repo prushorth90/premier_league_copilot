@@ -1,6 +1,6 @@
 # Fantasy Premier League Recommendation App
 
-Initial full-stack foundation for an FPL recommendation application. This repository currently contains project infrastructure only; no player, squad, or recommendation features are implemented yet.
+Full-stack FPL analysis application with live team, squad, player, fixture, and deterministic projected-points data.
 
 ## Stack
 
@@ -144,9 +144,25 @@ Swagger is enabled when `ASPNETCORE_ENVIRONMENT` is set to `Development`.
 - `ExternalClients`: configured outbound HTTP clients
 - `Configuration`: strongly typed application options
 - `Middleware`: centralized exception handling
-- `Recommendation`: composition boundary reserved for future recommendation logic
+- `Recommendation`: deterministic projection factors and recommendation composition
 
 The backend validates FPL API, PostgreSQL, and Redis configuration during startup. Controllers and services use async methods and propagate request cancellation tokens.
+
+### Projected points
+
+`IProjectedPointsService.GetPlayerProjectionAsync` estimates a requested player's points over the next 1, 3, and 5 distinct gameweeks. Double-gameweek fixtures are included in the same horizon gameweek.
+
+The initial deterministic formula is additive and runs these isolated factors in order:
+
+- Position-specific baseline
+- Recent FPL form
+- Expected minutes from the five latest appearances
+- Fixture difficulty
+- Home or away venue
+- Historical FPL points per 90 from the latest three seasons
+- Availability multiplier from player status and chance of playing
+
+Scores are floored at zero and rounded to two decimal places. Results include fixture-level and horizon-level factor contributions with plain-language explanations, plus an explicit rounding adjustment when required so every breakdown reconciles exactly to its projected score.
 
 ### FPL data client
 
