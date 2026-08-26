@@ -5,6 +5,26 @@ Accept: application/json
 
 ###
 
+GET {{backend_HostAddress}}/api/fpl/team/1
+Accept: application/json
+
+###
+
+GET {{backend_HostAddress}}/api/fpl/team/1/squad
+Accept: application/json
+
+###
+
+GET {{backend_HostAddress}}/api/fpl/players
+Accept: application/json
+
+###
+
+GET {{backend_HostAddress}}/api/fpl/fixtures
+Accept: application/json
+
+###
+
 GET {{backend_HostAddress}}/swagger/v1/swagger.json
 Accept: application/json
 

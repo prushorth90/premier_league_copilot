@@ -152,6 +152,19 @@ The backend validates FPL API, PostgreSQL, and Redis configuration during startu
 
 Transport DTOs are mapped to application models before data leaves the service. Redis caches bootstrap data for 60 minutes, fixtures for 15 minutes, manager and squad data for 5 minutes, and player history for 30 minutes by default. Cache failures fall back to the upstream API, while upstream failures are logged and returned through centralized exception handling as `502 Bad Gateway` responses.
 
+### FPL REST API
+
+The React frontend uses the backend endpoints below and never communicates with the public FPL API directly. In these routes, `teamId` is the public FPL entry ID.
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/fpl/team/{teamId}` | Manager and fantasy team summary |
+| `GET` | `/api/fpl/team/{teamId}/squad` | Current gameweek squad with enriched player details |
+| `GET` | `/api/fpl/players` | All players with team, position, price, availability, and points |
+| `GET` | `/api/fpl/fixtures` | Fixtures with team names, scores, kickoff, and difficulty |
+
+Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
+
 ## Environment variables
 
 Example values live in `.env.example`, `frontend/.env.example`, and `backend/.env.example`. Local `.env` files are ignored by Git.

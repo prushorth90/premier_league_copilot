@@ -12,10 +12,14 @@ public sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var isUpstreamFailure = exception is FplApiException;
-        var statusCode = isUpstreamFailure
-            ? StatusCodes.Status502BadGateway
-            : StatusCodes.Status500InternalServerError;
+        var fplApiException = exception as FplApiException;
+        var isMissingFplData = fplApiException?.StatusCode == System.Net.HttpStatusCode.NotFound;
+        var isUpstreamFailure = fplApiException is not null;
+        var statusCode = isMissingFplData
+            ? StatusCodes.Status404NotFound
+            : isUpstreamFailure
+                ? StatusCodes.Status502BadGateway
+                : StatusCodes.Status500InternalServerError;
 
         logger.Log(
             isUpstreamFailure ? LogLevel.Warning : LogLevel.Error,
@@ -29,9 +33,11 @@ public sealed class GlobalExceptionHandler(
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
-            Title = isUpstreamFailure
-                ? "The Fantasy Premier League service is temporarily unavailable."
-                : "An unexpected error occurred.",
+            Title = isMissingFplData
+                ? "The requested FPL data was not found."
+                : isUpstreamFailure
+                    ? "The Fantasy Premier League service is temporarily unavailable."
+                    : "An unexpected error occurred.",
             Extensions = { ["traceId"] = httpContext.TraceIdentifier }
         };
 

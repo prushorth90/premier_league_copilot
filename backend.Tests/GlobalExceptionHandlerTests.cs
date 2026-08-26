@@ -59,4 +59,28 @@ public class GlobalExceptionHandlerTests
             response.RootElement.GetProperty("title").GetString());
         Assert.DoesNotContain("fixtures", response.RootElement.GetRawText());
     }
+
+    [Fact]
+    public async Task TryHandleAsyncReturnsNotFoundForMissingFplData()
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            TraceIdentifier = "missing-trace-id"
+        };
+        httpContext.Response.Body = new MemoryStream();
+        var handler = new GlobalExceptionHandler(NullLogger<GlobalExceptionHandler>.Instance);
+
+        await handler.TryHandleAsync(
+            httpContext,
+            new FplApiException("entry/999/", System.Net.HttpStatusCode.NotFound),
+            CancellationToken.None);
+
+        httpContext.Response.Body.Position = 0;
+        using var response = await JsonDocument.ParseAsync(httpContext.Response.Body);
+
+        Assert.Equal(StatusCodes.Status404NotFound, httpContext.Response.StatusCode);
+        Assert.Equal(
+            "The requested FPL data was not found.",
+            response.RootElement.GetProperty("title").GetString());
+    }
 }
