@@ -10,6 +10,17 @@ describe('sendCoachMessage', () => {
       teamId: 7558250,
       respondedAt: '2026-08-26T12:00:00Z',
       isMocked: true,
+      recommendationType: 'Transfer',
+      confidence: 68,
+      player: {
+        playerId: 10,
+        playerName: 'Saka',
+        teamName: 'Arsenal',
+        position: 'MID',
+        status: 'd',
+        chanceOfPlayingNextRound: 75,
+        photoUrl: '/images/player-placeholder.svg',
+      },
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200,

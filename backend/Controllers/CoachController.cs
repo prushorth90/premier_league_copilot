@@ -12,6 +12,8 @@ public sealed class CoachController(ICoachService coachService) : ControllerBase
     [HttpPost("chat", Name = "ChatWithCoach")]
     [ProducesResponseType<CoachChatResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status502BadGateway)]
     public async Task<ActionResult<CoachChatResponse>> ChatAsync(
         CoachChatRequest request,
         CancellationToken cancellationToken)

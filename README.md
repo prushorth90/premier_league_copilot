@@ -191,7 +191,30 @@ The AI Coach page provides the first chat interaction layer for natural-language
 }
 ```
 
-This initial endpoint returns deterministic mocked guidance and does not call an AI provider or use private FPL credentials. The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request` Problem Details. The `ICoachService` abstraction keeps the controller contract stable for a future AI implementation.
+The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, then matches named players in the message against the owned squad. This initial endpoint returns deterministic mocked guidance and does not call an AI provider or use private FPL credentials.
+
+The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Transfer`, or `Replacement`), a 0-100 confidence score, and optional matched-player details:
+
+```json
+{
+	"message": "I found Saka in your current squad and noted the injury concern...",
+	"teamId": 7558250,
+	"recommendationType": "Availability",
+	"confidence": 78,
+	"player": {
+		"playerId": 12,
+		"playerName": "Saka",
+		"teamName": "Arsenal",
+		"position": "MID",
+		"status": "a",
+		"chanceOfPlayingNextRound": null,
+		"photoUrl": "https://resources.premierleague.com/premierleague/photos/players/110x140/p223340.png"
+	},
+	"isMocked": true
+}
+```
+
+The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and upstream failures use the existing sanitized Problem Details handling. The `ICoachService` abstraction keeps the controller contract stable for a future AI implementation.
 
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 

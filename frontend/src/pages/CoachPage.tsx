@@ -5,6 +5,7 @@ import { ApiError } from '../api/fplApi'
 import { PageHeader } from '../components/ui/PageHeader'
 import type { CoachChatMessage } from '../models/coach'
 import { useTeam } from '../team/useTeam'
+import { PlayerHeadshot } from '../components/player/PlayerHeadshot'
 
 const suggestions = [
   'Saka is injured',
@@ -47,6 +48,9 @@ export function CoachPage() {
         content: response.message,
         sentAt: response.respondedAt,
         isMocked: response.isMocked,
+        recommendationType: response.recommendationType,
+        confidence: response.confidence,
+        player: response.player,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -135,7 +139,13 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
       <Avatar role={message.role} />
       <div className={`max-w-[min(34rem,82%)] px-4 py-3 text-sm leading-6 ${isUser ? 'bg-[#151a17] text-white' : 'border border-black/10 bg-white text-[#151a17]'}`}>
         <p>{message.content}</p>
-        {message.isMocked && <p className="mt-2 text-[9px] font-bold uppercase text-[#287c50]">Mocked response</p>}
+        {message.player && (
+          <div className="mt-3 flex items-center gap-3 border-t border-black/8 pt-3">
+            <div className="grid h-14 w-11 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={message.player.photoUrl} playerName={message.player.playerName} className="h-full w-auto" /></div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold">{message.player.playerName}</p><p className="mt-0.5 text-[10px] text-black/45">{message.player.teamName} · {message.player.position}{message.player.chanceOfPlayingNextRound !== null ? ` · ${message.player.chanceOfPlayingNextRound}% chance` : ''}</p></div>
+          </div>
+        )}
+        {(message.isMocked || message.recommendationType) && <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold uppercase text-[#287c50]">{message.isMocked && <span>Mocked response</span>}{message.recommendationType && <span>{message.recommendationType}</span>}{message.confidence !== undefined && <span>{message.confidence.toFixed(0)}% confidence</span>}</div>}
       </div>
     </div>
   )
