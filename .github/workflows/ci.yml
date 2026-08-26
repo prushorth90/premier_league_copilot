@@ -57,11 +57,23 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore PremierLeagueCopilot.sln
 
+      - name: Restore local .NET tools
+        run: dotnet tool restore
+
       - name: Build solution
         run: dotnet build PremierLeagueCopilot.sln --configuration Release --no-restore
 
       - name: Test solution
         run: dotnet test PremierLeagueCopilot.sln --configuration Release --no-build
+
+      - name: Validate EF Core migrations
+        run: >-
+          dotnet tool run dotnet-ef migrations script --idempotent
+          --project backend/backend.csproj
+          --startup-project backend/backend.csproj
+          --no-build
+          --configuration Release
+          --output $RUNNER_TEMP/application-persistence.sql
 
   docker:
     name: Docker images

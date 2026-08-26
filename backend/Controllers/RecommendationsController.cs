@@ -1,3 +1,5 @@
+using Backend.DTOs;
+using Backend.Persistence;
 using Backend.Recommendation.Captain;
 using Backend.Recommendation.Captain.Models;
 using Backend.Recommendation.Lineup;
@@ -14,7 +16,8 @@ namespace Backend.Controllers;
 public sealed class RecommendationsController(
     ICaptainRecommendationService captainRecommendationService,
     ILineupRecommendationService lineupRecommendationService,
-    ITransferRecommendationService transferRecommendationService) : ControllerBase
+    ITransferRecommendationService transferRecommendationService,
+    IRecommendationStore recommendationStore) : ControllerBase
 {
     [HttpGet("{teamId:int}/captain", Name = "GetCaptainRecommendation")]
     [ProducesResponseType<CaptainRecommendation>(StatusCodes.Status200OK)]
@@ -33,7 +36,15 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be a positive integer.");
         }
 
+        const string kind = "captain";
+        var cached = await recommendationStore.GetCurrentAsync<CaptainRecommendation>(teamId, kind, cancellationToken);
+        if (cached is not null)
+        {
+            return Ok(cached);
+        }
+
         var recommendation = await captainRecommendationService.GetRecommendationAsync(teamId, cancellationToken);
+        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
         return Ok(recommendation);
     }
 
@@ -54,7 +65,15 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be a positive integer.");
         }
 
+        const string kind = "lineup";
+        var cached = await recommendationStore.GetCurrentAsync<LineupRecommendation>(teamId, kind, cancellationToken);
+        if (cached is not null)
+        {
+            return Ok(cached);
+        }
+
         var recommendation = await lineupRecommendationService.GetRecommendationAsync(teamId, cancellationToken);
+        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
         return Ok(recommendation);
     }
 
@@ -76,7 +95,36 @@ public sealed class RecommendationsController(
                 detail: "The team ID must be positive and limit must be between 1 and 50.");
         }
 
+        var kind = $"transfers:{limit}";
+        var cached = await recommendationStore.GetCurrentAsync<TransferRecommendationResponse>(teamId, kind, cancellationToken);
+        if (cached is not null)
+        {
+            return Ok(cached);
+        }
+
         var recommendation = await transferRecommendationService.GetRecommendationsAsync(teamId, limit, cancellationToken);
+        await recommendationStore.StoreAsync(teamId, kind, recommendation, recommendation.CalculatedAt, cancellationToken);
         return Ok(recommendation);
+    }
+
+    [HttpGet("{teamId:int}/history", Name = "GetRecommendationHistory")]
+    [ProducesResponseType<IReadOnlyList<RecommendationHistoryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<RecommendationHistoryResponse>>> GetHistoryAsync(
+        int teamId,
+        [FromQuery] string? kind = null,
+        [FromQuery] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        if (teamId <= 0 || limit is < 1 or > 100 || kind?.Length > 40)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid recommendation history request.",
+                detail: "Team ID must be positive, limit must be between 1 and 100, and kind must not exceed 40 characters.");
+        }
+
+        var history = await recommendationStore.GetHistoryAsync(teamId, kind, limit, cancellationToken);
+        return Ok(history.Select(RecommendationHistoryResponse.From).ToArray());
     }
 }

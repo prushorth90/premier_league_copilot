@@ -152,6 +152,34 @@ Swagger is enabled when `ASPNETCORE_ENVIRONMENT` is set to `Development`.
 
 The backend validates FPL API, PostgreSQL, and Redis configuration during startup. Controllers and services use async methods and propagate request cancellation tokens.
 
+### PostgreSQL persistence
+
+Entity Framework Core with the Npgsql provider stores only application-owned data:
+
+- Local profiles and their selected public FPL team ID
+- Per-profile application settings as typed JSON values
+- One expiring current recommendation snapshot per FPL team and recommendation kind
+- Append-only recommendation history for freshly calculated responses
+
+Public FPL players, teams, fixtures, picks, and history are not duplicated in PostgreSQL. Those resources continue to come from the typed FPL client and Redis cache.
+
+The backend applies pending migrations at startup when `Persistence__ApplyMigrations=true`. The snapshot lifetime is configured with `Persistence__RecommendationSnapshotMinutes`. Docker Compose supplies the PostgreSQL connection through `ConnectionStrings__PostgreSQL` using the root `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` environment values.
+
+Restore the repository-local EF tool and manage migrations from the repository root:
+
+```bash
+dotnet tool restore
+dotnet tool run dotnet-ef migrations add MigrationName \
+	--project backend/backend.csproj \
+	--startup-project backend/backend.csproj \
+	--output-dir Persistence/Migrations
+dotnet tool run dotnet-ef database update \
+	--project backend/backend.csproj \
+	--startup-project backend/backend.csproj
+```
+
+`IProfileRepository` owns profile and setting persistence. `IRecommendationStore` owns fresh snapshot reads, snapshot replacement, and recommendation-history appends, keeping EF concerns out of recommendation algorithms and controllers.
+
 ### Projected points
 
 `IProjectedPointsService.GetPlayerProjectionAsync` estimates a requested player's points over the next 1, 3, and 5 distinct gameweeks. Double-gameweek fixtures are included in the same horizon gameweek.
@@ -215,6 +243,13 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/recommendations/{teamId}/captain` | Ranked captain, vice captain, alternatives, and factor explanations |
 | `GET` | `/api/recommendations/{teamId}/lineup` | Best legal starting XI, formation, bench order, and current-lineup changes |
 | `GET` | `/api/recommendations/{teamId}/transfers?limit=20` | Valid transfer upgrades ranked across 1, 3, and 5 gameweeks |
+| `GET` | `/api/recommendations/{teamId}/history?kind=captain&limit=20` | Persisted recommendation history, optionally filtered by kind |
+| `GET` | `/api/profiles` | List local application profiles |
+| `POST` | `/api/profiles` | Create a local profile with an optional selected FPL team ID |
+| `GET` | `/api/profiles/{profileId}` | Read a local profile |
+| `PUT` | `/api/profiles/{profileId}/team` | Update or clear the selected FPL team ID |
+| `GET` | `/api/profiles/{profileId}/settings/{key}` | Read a typed JSON application setting |
+| `PUT` | `/api/profiles/{profileId}/settings/{key}` | Create or replace a typed JSON application setting |
 
 Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
 

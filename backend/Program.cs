@@ -1,6 +1,7 @@
 using Backend.Configuration;
 using Backend.ExternalClients;
 using Backend.Middleware;
+using Backend.Persistence;
 using Backend.Recommendation;
 using Backend.Services;
 
@@ -10,6 +11,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
 
 builder.Services.AddApplicationConfiguration(builder.Configuration);
+builder.Services.AddApplicationPersistence(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddExternalClients();
 builder.Services.AddRecommendationServices();
@@ -31,6 +33,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+await app.Services.ApplyApplicationMigrationsAsync();
 
 app.UseCors("Frontend");
 app.UseExceptionHandler();

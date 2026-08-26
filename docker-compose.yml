@@ -21,6 +21,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__PostgreSQL: Host=postgres;Port=5432;Database=${POSTGRES_DB:-fpl};Username=${POSTGRES_USER:-fpl};Password=${POSTGRES_PASSWORD:-fpl_dev_password}
+      Persistence__RecommendationSnapshotMinutes: ${RECOMMENDATION_SNAPSHOT_MINUTES:-15}
+      Persistence__ApplyMigrations: "true"
       Redis__ConnectionString: redis:6379
     volumes:
       - ./backend:/src

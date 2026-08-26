@@ -33,6 +33,12 @@ public static class ServiceCollectionExtensions
                 $"{RedisOptions.SectionName}:ConnectionString is required")
             .ValidateOnStart();
 
+        services.AddOptions<PersistenceOptions>()
+            .Bind(configuration.GetSection(PersistenceOptions.SectionName))
+            .Validate(options => options.RecommendationSnapshotMinutes > 0,
+                $"{PersistenceOptions.SectionName}:RecommendationSnapshotMinutes must be greater than zero")
+            .ValidateOnStart();
+
         return services;
     }
 }
