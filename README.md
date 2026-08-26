@@ -219,7 +219,7 @@ Projected impact is the selected replacement's deterministic five-gameweek point
 
 The backend passes an invocation trace, the structured specialist outputs, and the C# recommendation to `FplCoachAgent` as `VERIFIED_SPECIALIST_RESULTS` before final generation. `FplCoachAgent` must not reinvoke completed specialists and must preserve the C# action exactly; it only explains the result conversationally. The backend also prefixes action-oriented chat responses with the deterministic action and reason, so model prose cannot override the recommendation.
 
-The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Fixture`, `Recommendation`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability, fixture, transfer, or deterministic recommendation analysis when applicable:
+The strongly typed response includes the conversational `message`, recommendation type (`General`, `Availability`, `Fixture`, `Recommendation`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability, fixture, transfer, or deterministic recommendation analysis when applicable. When C# produces a recommendation, `structuredRecommendation` provides a stable client-facing summary with the detected player, action, confidence, injury status, upcoming fixture summary, optional suggested replacement, projected impact, horizon, and reason:
 
 ```json
 {
@@ -236,9 +236,22 @@ The strongly typed response includes the final message, recommendation type (`Ge
 		"chanceOfPlayingNextRound": null,
 		"photoUrl": "https://resources.premierleague.com/premierleague/photos/players/110x140/p223340.png"
 	},
+	"structuredRecommendation": {
+		"detectedPlayer": { "playerId": 12, "playerName": "Saka", "teamName": "Arsenal", "position": "MID" },
+		"recommendedAction": "Transfer",
+		"confidence": 80,
+		"injuryStatus": { "status": "d", "description": "Doubtful", "chanceOfPlayingNextRound": 50 },
+		"upcomingFixtureSummary": { "requestedGameweeks": 5, "scheduleRating": "Favorable", "averageDifficulty": 2.4 },
+		"suggestedReplacement": { "playerName": "Palmer", "priceDifference": -0.5, "projectedPointDifference": 8.0 },
+		"projectedImpact": 8.0,
+		"projectionGameweeks": 5,
+		"reason": "Transfer to Palmer: the legal replacement projects +8.00 points better over 5 gameweeks."
+	},
 	"isMocked": false
 }
 ```
+
+The React coach renders `message` as normal conversation text. When `structuredRecommendation` is non-null, it renders a separate recommendation card directly underneath with the action, player, confidence, injury status, fixture rating, replacement, and projected impact; the detailed specialist panels remain available below it.
 
 The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly, `IFplCoachFactService` owns read-only fact retrieval, and `ICopilotChatClient` isolates all SDK sessions and custom-agent configuration.
 

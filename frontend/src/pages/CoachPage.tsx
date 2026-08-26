@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { sendCoachMessage } from '../api/coachApi'
 import { ApiError } from '../api/fplApi'
 import { PageHeader } from '../components/ui/PageHeader'
-import type { CoachChatMessage } from '../models/coach'
+import type { CoachChatMessage, CoachStructuredRecommendation } from '../models/coach'
 import { useTeam } from '../team/useTeam'
 import { PlayerHeadshot } from '../components/player/PlayerHeadshot'
 
@@ -55,6 +55,7 @@ export function CoachPage() {
         fixtures: response.fixtures,
         transfers: response.transfers,
         recommendation: response.recommendation,
+        structuredRecommendation: response.structuredRecommendation,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -143,15 +144,7 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
       <Avatar role={message.role} />
       <div className={`max-w-[min(34rem,82%)] px-4 py-3 text-sm leading-6 ${isUser ? 'bg-[#151a17] text-white' : 'border border-black/10 bg-white text-[#151a17]'}`}>
         <p>{message.content}</p>
-        {message.recommendation && (
-          <div className="mt-3 border-l-4 border-[#287c50] bg-[#edf7f1] px-3 py-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span className="text-xs font-black uppercase text-[#155c39]">{message.recommendation.action}</span>
-              <span className="text-[10px] font-bold text-[#287c50]">{formatSigned(message.recommendation.projectedImpact)} pts / {message.recommendation.projectionGameweeks} GW · {message.recommendation.confidence.toFixed(0)}%</span>
-            </div>
-            <p className="mt-1 text-[10px] leading-4 text-[#214a36]">{message.recommendation.reason}</p>
-          </div>
-        )}
+        {message.structuredRecommendation && <RecommendationCard recommendation={message.structuredRecommendation} />}
         {message.player && (
           <div className="mt-3 flex items-center gap-3 border-t border-black/8 pt-3">
             <div className="grid h-14 w-11 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={message.player.photoUrl} playerName={message.player.playerName} className="h-full w-auto" /></div>
@@ -216,6 +209,29 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
 
 function AvailabilityMetric({ label, value }: { label: string; value: string }) {
   return <div className="min-w-0 bg-[#f4f4ef] px-2 py-2"><dt className="font-bold uppercase text-black/35">{label}</dt><dd className="mt-1 break-words font-semibold text-[#151a17]">{value}</dd></div>
+}
+
+function RecommendationCard({ recommendation }: { recommendation: CoachStructuredRecommendation }) {
+  const replacement = recommendation.suggestedReplacement
+  return (
+    <section className="mt-3 border border-[#287c50]/30 bg-[#edf7f1]" aria-label="Structured recommendation">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#287c50]/20 px-3 py-2.5">
+        <div><p className="text-[9px] font-bold uppercase text-[#287c50]">Recommendation</p><p className="text-sm font-black uppercase text-[#155c39]">{recommendation.recommendedAction} {recommendation.detectedPlayer.playerName}</p></div>
+        <div className="text-right"><p className="text-xs font-black text-[#155c39]">{formatSigned(recommendation.projectedImpact)} pts</p><p className="text-[9px] text-[#287c50]">{recommendation.projectionGameweeks} GW · {recommendation.confidence.toFixed(0)}% confidence</p></div>
+      </div>
+      <dl className="grid grid-cols-2 gap-px bg-[#287c50]/15 text-[10px] sm:grid-cols-3">
+        <RecommendationMetric label="Injury status" value={recommendation.injuryStatus.description} />
+        <RecommendationMetric label="Fixtures" value={`${recommendation.upcomingFixtureSummary.scheduleRating} · FDR ${formatScore(recommendation.upcomingFixtureSummary.averageDifficulty)}`} />
+        <RecommendationMetric label="Replacement" value={replacement ? `${replacement.playerName} · £${replacement.price.toFixed(1)}m` : 'None suggested'} />
+      </dl>
+      <p className="px-3 py-2.5 text-[10px] leading-4 text-[#214a36]">{recommendation.reason}</p>
+      {replacement && <p className="border-t border-[#287c50]/15 px-3 py-2 text-[9px] text-[#287c50]">{replacement.teamName} · {replacement.position} · {formatSignedCurrency(replacement.priceDifference)} · {formatSigned(replacement.projectedPointDifference)} projected pts</p>}
+    </section>
+  )
+}
+
+function RecommendationMetric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 bg-[#f7fcf9] px-3 py-2"><dt className="font-bold uppercase text-[#287c50]">{label}</dt><dd className="mt-0.5 break-words font-semibold text-[#153d2a]">{value}</dd></div>
 }
 
 function Avatar({ role }: { role: CoachChatMessage['role'] }) {

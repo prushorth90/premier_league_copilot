@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/fplApi'
@@ -87,6 +87,23 @@ describe('CoachPage', () => {
         },
         source: 'Deterministic C# recommendation policy',
       },
+      structuredRecommendation: {
+        detectedPlayer: {
+          playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID', status: 'd',
+          chanceOfPlayingNextRound: 75, photoUrl: '/images/player-placeholder.svg',
+        },
+        recommendedAction: 'Transfer',
+        confidence: 80,
+        injuryStatus: { status: 'd', description: 'Doubtful', isAvailable: false, chanceOfPlayingNextRound: 75, expectedReturn: '12 Sep' },
+        upcomingFixtureSummary: { requestedGameweeks: 5, scheduleRating: 'Favorable', averageDifficulty: 2, aggregateScore: 4, fixtures: [] },
+        suggestedReplacement: {
+          playerId: 20, playerName: 'Palmer', teamName: 'Chelsea', position: 'MID', price: 9.5,
+          priceDifference: -0.5, projectedPointDifference: 8, reason: 'Adds eight projected points.',
+        },
+        projectedImpact: 8,
+        projectionGameweeks: 5,
+        reason: 'Transfer to Palmer: the legal replacement projects +8.00 points better over 5 gameweeks.',
+      },
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -97,18 +114,22 @@ describe('CoachPage', () => {
     expect(await screen.findByText('Compare Saka with the best same-position replacements.')).toBeTruthy()
     expect(coachApiMock.sendCoachMessage).toHaveBeenCalledWith({ teamId: 7558250, message: 'Should I sell Saka?' })
     expect(screen.queryByText('Mocked response')).toBeNull()
-    expect(screen.getAllByText('Transfer')).toHaveLength(2)
+    expect(screen.getByText('Transfer')).toBeTruthy()
     expect(screen.getByText('68% confidence')).toBeTruthy()
     expect(screen.getByText('Arsenal · MID · 75% chance')).toBeTruthy()
-    expect(screen.getByText('Doubtful')).toBeTruthy()
+    expect(screen.getAllByText('Doubtful')).toHaveLength(2)
     expect(screen.getByText('12 Sep')).toBeTruthy()
     expect(screen.getByText('85%')).toBeTruthy()
     expect(screen.getByText('Palmer · Chelsea · MID')).toBeTruthy()
-    expect(screen.getByText('+8.00 pts')).toBeTruthy()
-    expect(screen.getByText('-£0.5m', { exact: false })).toBeTruthy()
+    const card = screen.getByRole('region', { name: 'Structured recommendation' })
+    expect(within(card).getByText('Transfer Saka')).toBeTruthy()
+    expect(within(card).getByText('+8.00 pts')).toBeTruthy()
+    expect(within(card).getByText('5 GW · 80% confidence')).toBeTruthy()
+    expect(within(card).getByText('Doubtful')).toBeTruthy()
+    expect(within(card).getByText('Favorable · FDR 2.00')).toBeTruthy()
+    expect(within(card).getByText('Palmer · £9.5m')).toBeTruthy()
+    expect(within(card).getByText('-£0.5m', { exact: false })).toBeTruthy()
     expect(screen.getByText('Bank £0.5m · Max £10.5m')).toBeTruthy()
-    expect(screen.getByText('Transfer', { selector: 'span.text-xs' })).toBeTruthy()
-    expect(screen.getByText('+8.00 pts / 5 GW · 80%')).toBeTruthy()
   })
 
   it('shows a pending assistant state while waiting', async () => {
@@ -123,7 +144,7 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null, recommendation: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null, recommendation: null, structuredRecommendation: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
   })
 
@@ -152,6 +173,7 @@ describe('CoachPage', () => {
       },
       transfers: null,
       recommendation: null,
+      structuredRecommendation: null,
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -169,7 +191,7 @@ describe('CoachPage', () => {
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null, recommendation: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null, recommendation: null, structuredRecommendation: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 

@@ -83,6 +83,9 @@ public sealed class CopilotCoachService(
         reply = EnsureAvailabilityClaimIsGrounded(
             reply,
             recommendationType == CoachRecommendationType.Availability ? availability : null);
+        var structuredRecommendation = recommendation is not null && playerInfo is not null
+            ? MapStructuredRecommendation(playerInfo, recommendation)
+            : null;
 
         return new CoachChatResponse(
             reply,
@@ -95,7 +98,47 @@ public sealed class CopilotCoachService(
             availability,
             fixtures,
             transfers,
-            recommendation);
+            recommendation,
+            structuredRecommendation);
+    }
+
+    private static CoachStructuredRecommendation MapStructuredRecommendation(
+        CoachPlayerInfo player,
+        PlayerRecommendationResult recommendation)
+    {
+        var availability = recommendation.Availability;
+        var fixtures = recommendation.Fixtures;
+        var replacement = recommendation.RecommendedReplacement;
+        return new CoachStructuredRecommendation(
+            player,
+            recommendation.Action,
+            recommendation.Confidence,
+            new CoachInjuryStatus(
+                availability.Status,
+                availability.StatusDescription,
+                availability.IsAvailable,
+                availability.ChanceOfPlayingNextRound,
+                availability.ExpectedReturn),
+            new CoachFixtureSummary(
+                fixtures.RequestedGameweeks,
+                fixtures.ScheduleRating,
+                fixtures.AverageDifficulty,
+                fixtures.AggregateScore,
+                fixtures.Fixtures),
+            replacement is null
+                ? null
+                : new CoachSuggestedReplacement(
+                    replacement.Player.PlayerId,
+                    replacement.Player.PlayerName,
+                    replacement.Player.TeamName,
+                    replacement.Player.Position,
+                    replacement.Player.Price,
+                    replacement.PriceDifference,
+                    replacement.ProjectedPointDifference,
+                    replacement.Reason),
+            recommendation.ProjectedImpact,
+            recommendation.ProjectionGameweeks,
+            recommendation.Reason);
     }
 
     private static CoachSpecialistGrounding CreateGrounding(

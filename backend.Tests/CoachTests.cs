@@ -63,6 +63,14 @@ public class CoachTests
             var candidate = Assert.Single(response.Transfers!.Candidates);
             Assert.Equal("Palmer", candidate.Player.PlayerName);
             Assert.Equal(8m, candidate.ProjectedPointDifference);
+            Assert.Equal("Saka", response.StructuredRecommendation?.DetectedPlayer.PlayerName);
+            Assert.Equal(PlayerRecommendationAction.Transfer, response.StructuredRecommendation?.RecommendedAction);
+            Assert.Equal(80m, response.StructuredRecommendation?.Confidence);
+            Assert.Equal("Doubtful", response.StructuredRecommendation?.InjuryStatus.Description);
+            Assert.Equal("Favorable", response.StructuredRecommendation?.UpcomingFixtureSummary.ScheduleRating);
+            Assert.Equal("Palmer", response.StructuredRecommendation?.SuggestedReplacement?.PlayerName);
+            Assert.Equal(8m, response.StructuredRecommendation?.ProjectedImpact);
+            Assert.Equal(5, response.StructuredRecommendation?.ProjectionGameweeks);
         }
         if (expectedType == CoachRecommendationType.Fixture)
         {
