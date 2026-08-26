@@ -40,7 +40,7 @@ public sealed class FplCoachSessionFactory(
             factoryOptions: new AIFunctionFactoryOptions
             {
                 Name = FplCoachAgents.TransfersTool,
-                Description = "GetTransferCandidates(playerId, limit): return ranked replacements after C# enforces squad, bank, price, position, projection, and three-player club constraints."
+                Description = "GetTransferCandidates(playerId, limit): return immutable ranked replacements after C# enforces connected-squad ownership, bank, price, position, availability, projected points, and three-player club constraints."
             });
         return new SessionConfig
         {

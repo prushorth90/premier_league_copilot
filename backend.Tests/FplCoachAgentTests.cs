@@ -38,8 +38,10 @@ public class FplCoachAgentTests
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
         Assert.Equal("TransferAgent", transfer.Name);
         Assert.Equal([FplCoachAgents.TransfersTool], transfer.Tools);
-        Assert.Contains("maximum-three-per-club", transfer.Prompt);
-        Assert.Contains("projected-point difference", transfer.Prompt);
+        Assert.Contains("no more than three players from one club", transfer.Prompt);
+        Assert.Contains("projected-point difference", transfer.Prompt, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exact rank order returned by C#", transfer.Prompt);
+        Assert.Contains("Do not suggest an unreturned player", transfer.Prompt);
         Assert.Equal(4, agents.Count);
         Assert.Contains("invoke InjuryAgent first", parent.Prompt);
         Assert.Contains("may run concurrently", parent.Prompt);
