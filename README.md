@@ -127,6 +127,19 @@ dotnet build
 
 Swagger is enabled when `ASPNETCORE_ENVIRONMENT` is set to `Development`.
 
+### Backend structure
+
+- `Controllers`: HTTP routing and response handling
+- `Services`: application service contracts and implementations
+- `Models`: internal domain and application models
+- `DTOs`: public API request and response contracts
+- `ExternalClients`: configured outbound HTTP clients
+- `Configuration`: strongly typed application options
+- `Middleware`: centralized exception handling
+- `Recommendation`: composition boundary reserved for future recommendation logic
+
+The backend validates FPL API, PostgreSQL, and Redis configuration during startup. Controllers and services use async methods and propagate request cancellation tokens.
+
 ## Environment variables
 
-Example values live in `frontend/.env.example` and `backend/.env.example`. Local `.env` files are ignored by Git.
+Example values live in `.env.example`, `frontend/.env.example`, and `backend/.env.example`. Local `.env` files are ignored by Git.

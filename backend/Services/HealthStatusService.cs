@@ -1,13 +1,13 @@
-namespace Backend.Services;
+using Backend.Models;
 
-public interface IHealthStatusService
-{
-    HealthStatus GetStatus();
-}
+namespace Backend.Services;
 
 public sealed class HealthStatusService : IHealthStatusService
 {
-    public HealthStatus GetStatus() => new("Healthy", DateTimeOffset.UtcNow);
-}
+    public ValueTask<HealthStatus> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
 
-public sealed record HealthStatus(string Status, DateTimeOffset Timestamp);
+        return ValueTask.FromResult(new HealthStatus("Healthy", DateTimeOffset.UtcNow));
+    }
+}
