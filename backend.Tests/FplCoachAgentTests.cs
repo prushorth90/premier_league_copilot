@@ -30,6 +30,10 @@ public class FplCoachAgentTests
         var fixture = Assert.Single(agents, agent => agent.Name == FplCoachAgents.FixtureSpecialistName);
         Assert.Equal("FixtureAgent", fixture.Name);
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
+        Assert.Contains("get_upcoming_fixtures(playerId, 1)", fixture.Prompt);
+        Assert.Contains("get_upcoming_fixtures(playerId, 3)", fixture.Prompt);
+        Assert.Contains("get_upcoming_fixtures(playerId, 5)", fixture.Prompt);
+        Assert.Contains("Never calculate, average, merge, rescore, or invent", fixture.Prompt);
         Assert.Contains("Do not recommend", fixture.Prompt);
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
         Assert.Equal("TransferAgent", transfer.Name);

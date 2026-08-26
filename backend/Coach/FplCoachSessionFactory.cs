@@ -30,7 +30,7 @@ public sealed class FplCoachSessionFactory(
             factoryOptions: new AIFunctionFactoryOptions
             {
                 Name = FplCoachAgents.FixturesTool,
-                Description = "GetUpcomingFixtures(playerId, gameweeks): return official fixtures and deterministic difficulty aggregation for one owned player."
+                Description = "GetUpcomingFixtures(playerId, gameweeks): return official fixtures and deterministic C# difficulty aggregation for one owned player; FixtureAgent calls it for 1, 3, and 5 gameweeks."
             });
         var transfersTool = CopilotTool.DefineTool(
             async (
