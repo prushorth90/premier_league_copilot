@@ -3,11 +3,14 @@ import {
   CalendarDays,
   LayoutDashboard,
   Lightbulb,
+  Settings,
   Shield,
   Sparkles,
   Users,
 } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
+import { useFplTeamQuery } from '../../queries/fplQueries'
+import { useTeam } from '../../team/useTeam'
 
 const navigation = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
@@ -19,6 +22,9 @@ const navigation = [
 ]
 
 export function AppShell() {
+  const { teamId } = useTeam()
+  const teamQuery = useFplTeamQuery(teamId)
+
   return (
     <div className="min-h-screen bg-[#f4f4ef] text-[#191c1a]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-black/10 bg-[#151a17] text-white lg:flex lg:flex-col">
@@ -52,6 +58,11 @@ export function AppShell() {
           ))}
         </nav>
 
+        <Link to="/settings" className="mx-3 flex h-11 items-center gap-3 px-3 text-sm font-semibold text-white/65 hover:bg-white/8 hover:text-white">
+          <Settings size={18} />
+          Settings
+        </Link>
+
         <div className="m-3 border border-white/10 bg-white/5 p-4">
           <p className="text-xs font-bold uppercase text-[#b8ff3d]">Gameweek 1</p>
           <p className="mt-2 text-sm font-semibold">Deadline Friday</p>
@@ -70,12 +81,12 @@ export function AppShell() {
           <p className="hidden text-sm text-black/50 lg:block">Fantasy squad workspace</p>
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-bold">North Bank XI</p>
-              <p className="text-xs text-black/45">Overall 184,203</p>
+              <p className="text-sm font-bold">{teamQuery.data?.teamName ?? `Team ${teamId}`}</p>
+              <p className="text-xs text-black/45">{teamQuery.data?.managerName ?? `Team ID ${teamId}`}</p>
             </div>
-            <span className="grid size-9 place-items-center rounded-full bg-[#ff795f] text-sm font-bold text-[#151a17]">
-              NB
-            </span>
+            <Link to="/settings" aria-label="Team settings" title="Team settings" className="grid size-9 place-items-center rounded-full bg-[#ff795f] text-[#151a17]">
+              <Settings size={17} />
+            </Link>
           </div>
         </header>
 

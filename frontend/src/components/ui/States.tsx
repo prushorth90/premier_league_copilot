@@ -1,4 +1,5 @@
 import { AlertCircle, Inbox } from 'lucide-react'
+import type { ReactNode } from 'react'
 
 interface StateProps {
   title: string
@@ -17,13 +18,14 @@ export function EmptyState({ title, description }: StateProps) {
   )
 }
 
-export function ErrorState({ title = 'Unable to load data', description = 'Try again in a moment.' }: Partial<StateProps>) {
+export function ErrorState({ title = 'Unable to load data', description = 'Try again in a moment.', action }: Partial<StateProps> & { action?: ReactNode }) {
   return (
     <div className="flex min-h-40 items-start gap-4 border border-[#ff795f]/50 bg-[#fff2ee] p-5">
       <AlertCircle className="mt-0.5 shrink-0 text-[#be3e2b]" size={20} />
       <div>
         <h3 className="font-bold text-[#762718]">{title}</h3>
         <p className="mt-1 text-sm text-[#762718]/70">{description}</p>
+        {action && <div className="mt-4">{action}</div>}
       </div>
     </div>
   )

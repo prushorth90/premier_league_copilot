@@ -99,9 +99,17 @@ The frontend starts at `http://localhost:5173`. It can run without the backend.
 Useful checks:
 
 ```bash
+npm run typecheck
 npm run build
 npm run lint
+npm test
 ```
+
+### Frontend data layer
+
+The frontend uses a typed API client and TanStack Query for all backend FPL requests. Team and squad data remain fresh for 5 minutes, fixtures for 15 minutes, and players for 60 minutes. Queries refetch when stale on window focus, retry transient failures, and skip retries for missing resources. The Dashboard also provides a manual refresh action for all four resources.
+
+Set `VITE_API_BASE_URL` in `frontend/.env` when the API is not running at `http://localhost:5082`.
 
 ## Backend
 
@@ -155,6 +163,8 @@ Transport DTOs are mapped to application models before data leaves the service. 
 ### FPL REST API
 
 The React frontend uses the backend endpoints below and never communicates with the public FPL API directly. In these routes, `teamId` is the public FPL entry ID.
+
+On first use, the frontend asks for this public team ID, verifies it through the backend, and stores it in browser local storage. The Settings page can verify a replacement ID or remove the saved ID to restart setup.
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
