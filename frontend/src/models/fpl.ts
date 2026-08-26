@@ -10,6 +10,14 @@ export interface FplTeam {
   gameweekRank: number | null
   bank: number
   teamValue: number
+  freeTransfers: number | null
+  nextGameweek: FplGameweek | null
+}
+
+export interface FplGameweek {
+  id: number
+  name: string
+  deadline: string
 }
 
 export interface FplPlayer {

@@ -27,8 +27,14 @@ public sealed class FplController(
         }
 
         logger.LogInformation("Retrieving FPL team {TeamId}", teamId);
-        var manager = await fplDataService.GetManagerAsync(teamId, cancellationToken);
-        return Ok(manager.ToResponse());
+        var managerTask = fplDataService.GetManagerAsync(teamId, cancellationToken);
+        var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
+        await Task.WhenAll(managerTask, bootstrapTask);
+
+        var manager = await managerTask;
+        var bootstrapData = await bootstrapTask;
+        var nextGameweek = bootstrapData.Gameweeks.FirstOrDefault(gameweek => gameweek.IsNext);
+        return Ok(manager.ToResponse(nextGameweek));
     }
 
     [HttpGet("team/{teamId}/squad", Name = "GetFplTeamSquad")]

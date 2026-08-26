@@ -4,7 +4,7 @@ namespace Backend.DTOs;
 
 public static class FplResponseMapper
 {
-    public static FplTeamResponse ToResponse(this Manager manager) => new(
+    public static FplTeamResponse ToResponse(this Manager manager, Gameweek? nextGameweek) => new(
         manager.Id,
         $"{manager.FirstName} {manager.LastName}".Trim(),
         manager.TeamName,
@@ -15,7 +15,11 @@ public static class FplResponseMapper
         manager.GameweekPoints,
         manager.GameweekRank,
         ToMillions(manager.Bank),
-        ToMillions(manager.TeamValue));
+        ToMillions(manager.TeamValue),
+        null,
+        nextGameweek is null
+            ? null
+            : new FplGameweekResponse(nextGameweek.Id, nextGameweek.Name, nextGameweek.Deadline));
 
     public static FplPlayerResponse ToResponse(
         this Player player,

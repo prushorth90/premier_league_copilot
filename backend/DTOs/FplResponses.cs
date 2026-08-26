@@ -11,7 +11,14 @@ public sealed record FplTeamResponse(
     int GameweekPoints,
     int? GameweekRank,
     decimal Bank,
-    decimal TeamValue);
+    decimal TeamValue,
+    int? FreeTransfers,
+    FplGameweekResponse? NextGameweek);
+
+public sealed record FplGameweekResponse(
+    int Id,
+    string Name,
+    DateTimeOffset Deadline);
 
 public sealed record FplPlayerResponse(
     int Id,

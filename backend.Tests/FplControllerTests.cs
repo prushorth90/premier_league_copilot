@@ -39,6 +39,9 @@ public class FplControllerTests
         Assert.Equal("Ada Manager", response.ManagerName);
         Assert.Equal(1.5m, response.Bank);
         Assert.Equal(101.2m, response.TeamValue);
+        Assert.Null(response.FreeTransfers);
+        Assert.Equal(4, response.NextGameweek?.Id);
+        Assert.Equal("Gameweek 4", response.NextGameweek?.Name);
     }
 
     [Fact]
@@ -129,7 +132,7 @@ public class FplControllerTests
         1012);
 
     private static BootstrapData CreateBootstrapData() => new(
-        [],
+        [new Gameweek(4, "Gameweek 4", DateTimeOffset.Parse("2026-09-12T12:30:00Z"), false, false, true, 0, null)],
         [
             new Team(1, 3, "Arsenal", "ARS", 4, 4, 5),
             new Team(2, 8, "Chelsea", "CHE", 4, 4, 4)
