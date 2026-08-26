@@ -168,6 +168,12 @@ Scores are floored at zero and rounded to two decimal places. Results include fi
 
 The captain recommendation service ranks only the user's starting XI for the current gameweek. It combines projected points, expected minutes, fixture quality, position-adjusted expected goals and assists, and availability into a deterministic score. The response includes the best captain, vice captain, three alternatives, and every factor's score and plain-language explanation.
 
+### Lineup recommendations
+
+The lineup recommendation service evaluates the user's existing 15-player squad across every legal FPL formation. Each player is ranked using 80% of projected points plus an expected-minutes contribution worth up to 2 ranking points. The selected XI always contains exactly one goalkeeper, 3-5 defenders, 2-5 midfielders, and 1-3 forwards.
+
+The response includes the formation, ordered starting XI, and bench order. Outfield substitutes are ordered by rank and the reserve goalkeeper occupies the fourth bench slot. Lineup changes identify players moving into the XI and players moving to the bench compared with the user's current selection.
+
 ### FPL data client
 
 `IFplDataService` provides typed, asynchronous access to these public FPL resources:
@@ -193,6 +199,7 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/fpl/players` | All players with team, position, price, availability, and points |
 | `GET` | `/api/fpl/fixtures` | Fixtures with team names, scores, kickoff, and difficulty |
 | `GET` | `/api/recommendations/{teamId}/captain` | Ranked captain, vice captain, alternatives, and factor explanations |
+| `GET` | `/api/recommendations/{teamId}/lineup` | Best legal starting XI, formation, bench order, and current-lineup changes |
 
 Team IDs must be positive integers. Invalid IDs return `400 Bad Request`, missing public FPL entries return `404 Not Found`, and unavailable upstream data returns `502 Bad Gateway`. All errors use Problem Details JSON. Interactive schemas and response contracts are available in Swagger at `http://localhost:5082/swagger`.
 

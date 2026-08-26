@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getCaptainRecommendation, getFixtures, getPlayers, getSquad, getTeam, TeamVerificationError, verifyTeam } from './fplApi'
+import { getCaptainRecommendation, getFixtures, getLineupRecommendation, getPlayers, getSquad, getTeam, TeamVerificationError, verifyTeam } from './fplApi'
 
 describe('verifyTeam', () => {
   afterEach(() => {
@@ -43,14 +43,16 @@ describe('verifyTeam', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 1, displayName: 'Player' }]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 7, homeTeam: 'Arsenal' }]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ teamId: 42, bestCaptain: { playerName: 'Player' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ teamId: 42, formation: '3-4-3' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const [team, squad, players, fixtures, captainRecommendation] = await Promise.all([
+    const [team, squad, players, fixtures, captainRecommendation, lineupRecommendation] = await Promise.all([
       getTeam(42),
       getSquad(42),
       getPlayers(),
       getFixtures(),
       getCaptainRecommendation(42),
+      getLineupRecommendation(42),
     ])
 
     expect(team.id).toBe(42)
@@ -58,12 +60,14 @@ describe('verifyTeam', () => {
     expect(players[0]?.displayName).toBe('Player')
     expect(fixtures[0]?.homeTeam).toBe('Arsenal')
     expect(captainRecommendation.bestCaptain.playerName).toBe('Player')
+    expect(lineupRecommendation.formation).toBe('3-4-3')
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       'http://localhost:5082/api/fpl/team/42',
       'http://localhost:5082/api/fpl/team/42/squad',
       'http://localhost:5082/api/fpl/players',
       'http://localhost:5082/api/fpl/fixtures',
       'http://localhost:5082/api/recommendations/42/captain',
+      'http://localhost:5082/api/recommendations/42/lineup',
     ])
   })
 })

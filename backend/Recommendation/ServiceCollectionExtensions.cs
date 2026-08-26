@@ -3,6 +3,7 @@ namespace Backend.Recommendation;
 using Backend.Recommendation.Factors;
 using Backend.Recommendation.Captain;
 using Backend.Recommendation.Captain.Factors;
+using Backend.Recommendation.Lineup;
 
 public static class ServiceCollectionExtensions
 {
@@ -25,6 +26,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICaptainFactor, AvailabilityCaptainFactor>();
         services.AddSingleton<ICaptainRankingCalculator, CaptainRankingCalculator>();
         services.AddScoped<ICaptainRecommendationService, CaptainRecommendationService>();
+        services.AddSingleton<IFplFormationValidator, FplFormationValidator>();
+        services.AddSingleton<ILineupOptimizer, LineupOptimizer>();
+        services.AddScoped<ILineupRecommendationService, LineupRecommendationService>();
 
         return services;
     }

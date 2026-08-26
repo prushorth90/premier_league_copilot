@@ -116,3 +116,33 @@ export interface CaptainFactorBreakdown {
   score: number
   explanation: string
 }
+
+export interface LineupRecommendation {
+  teamId: number
+  gameweek: number
+  calculatedAt: string
+  formation: string
+  startingXi: LineupPlayer[]
+  bench: LineupPlayer[]
+  changes: LineupChange[]
+}
+
+export interface LineupPlayer {
+  playerId: number
+  playerName: string
+  teamName: string
+  position: string
+  projectedPoints: number
+  expectedMinutes: number
+  rankingScore: number
+  currentSquadPosition: number
+  recommendedSquadPosition: number
+}
+
+export interface LineupChange {
+  playerId: number
+  playerName: string
+  changeType: string
+  currentSquadPosition: number
+  recommendedSquadPosition: number
+}
