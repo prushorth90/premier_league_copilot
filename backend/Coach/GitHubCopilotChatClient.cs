@@ -1,6 +1,8 @@
 using Backend.Configuration;
+using Backend.Coach.Models;
 using GitHub.Copilot;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Backend.Coach;
 
@@ -8,18 +10,24 @@ public sealed class GitHubCopilotChatClient : ICopilotChatClient, IAsyncDisposab
 {
     private readonly CopilotOptions options;
     private readonly ILogger<GitHubCopilotChatClient> logger;
+    private readonly IFplCoachSessionFactory sessionFactory;
     private readonly CopilotClient client;
 
     public GitHubCopilotChatClient(
         IOptions<CopilotOptions> options,
+        IFplCoachSessionFactory sessionFactory,
         ILogger<GitHubCopilotChatClient> logger)
     {
         this.options = options.Value;
+        this.sessionFactory = sessionFactory;
         this.logger = logger;
         client = new CopilotClient(CreateClientOptions(this.options));
     }
 
-    public async Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
+    public async Task<string> GenerateAsync(
+        string message,
+        FplCoachContext context,
+        CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
@@ -27,15 +35,16 @@ public sealed class GitHubCopilotChatClient : ICopilotChatClient, IAsyncDisposab
         try
         {
             await client.StartAsync(timeout.Token);
-            await using var session = await client.CreateSessionAsync(new SessionConfig
-            {
-                Model = options.Model,
-                AvailableTools = [],
-                ExcludedTools = new ToolSet()
-                    .AddBuiltIn("*")
-                    .AddMcp("*")
-                    .AddCustom("*")
-            }, timeout.Token);
+            var sessionConfig = sessionFactory.Create(context, options.Model, timeout.Token);
+            await using var session = await client.CreateSessionAsync(sessionConfig, timeout.Token);
+            var contextJson = JsonSerializer.Serialize(context, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var prompt = $$"""
+                CURRENT_FPL_CONTEXT:
+                {{contextJson}}
+
+                USER_MESSAGE:
+                {{message}}
+                """;
             var response = await session.SendAndWaitAsync(
                 prompt,
                 TimeSpan.FromSeconds(options.RequestTimeoutSeconds),

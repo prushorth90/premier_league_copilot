@@ -191,7 +191,15 @@ The AI Coach uses the official `GitHub.Copilot.SDK` .NET package entirely inside
 }
 ```
 
-The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, then matches named players in the message against the owned squad. It serializes a bounded structured squad context and sends that context plus the user's message to a fresh Copilot session. No tools, MCP servers, custom tools, or specialist agents are enabled.
+The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, and rejects an incomplete or duplicate squad. It passes the resulting typed 15-player context and the user's message into a fresh Copilot session with `FplCoachAgent` selected as the parent custom agent.
+
+`FplCoachAgent` interprets the request and delegates factual investigation to the initial specialist agents:
+
+- `InjurySpecialistAgent` calls `get_player_availability`, which returns only official FPL bootstrap availability for an owned player.
+- `FixtureSpecialistAgent` calls `get_upcoming_fixtures`, which returns only official element-summary fixture data for an owned player.
+- `TransferSpecialistAgent` calls `get_transfer_recommendations`, which returns only budget-, position-, and club-valid options from the existing transfer engine.
+
+The parent can delegate but cannot call fact tools directly. Each specialist has an exclusive tool allowlist, ambiguous/non-owned player names fail closed, and no shell, file, web, or MCP tools are exposed. Agent prompts explicitly prohibit inventing injuries, fixtures, prices, budgets, or projected scores.
 
 The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Transfer`, or `Replacement`), a 0-100 confidence score, and optional matched-player details:
 
@@ -214,7 +222,7 @@ The strongly typed response includes the final message, recommendation type (`Ge
 }
 ```
 
-The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly and `ICopilotChatClient` isolates all SDK calls.
+The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly, `IFplCoachFactService` owns read-only fact retrieval, and `ICopilotChatClient` isolates all SDK sessions and custom-agent configuration.
 
 The SDK can use its bundled runtime with `COPILOT_GITHUB_TOKEN`, or connect to a private external headless runtime using `COPILOT_RUNTIME_URL` and an optional connection token. The GitHub account or organization must permit Copilot SDK/CLI features. A valid token alone is insufficient when enterprise or organization policy disables SDK access.
 

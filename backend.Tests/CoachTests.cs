@@ -36,11 +36,10 @@ public class CoachTests
         Assert.Equal("Arsenal", response.Player?.TeamName);
         Assert.Equal("MID", response.Player?.Position);
         Assert.Equal(8, dataService.RequestedGameweek);
-        Assert.Contains(message, copilotClient.Prompt);
-        Assert.Contains("\"squad\"", copilotClient.Prompt, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"name\":\"Saka\"", copilotClient.Prompt);
-        Assert.Contains("\"isStarter\":true", copilotClient.Prompt);
-        Assert.Contains("Do not call tools", copilotClient.Prompt);
+        Assert.Equal(message, copilotClient.Message);
+        Assert.Equal(15, copilotClient.Context?.Squad.Count);
+        var contextPlayer = Assert.Single(copilotClient.Context!.Squad, player => player.PlayerName == "Saka");
+        Assert.True(contextPlayer.IsStarter);
     }
 
     [Fact]
@@ -56,7 +55,8 @@ public class CoachTests
             service.ReplyAsync(999, "Saka is injured", CancellationToken.None));
 
         Assert.Equal(System.Net.HttpStatusCode.NotFound, exception.StatusCode);
-        Assert.Null(copilotClient.Prompt);
+        Assert.Null(copilotClient.Message);
+        Assert.Null(copilotClient.Context);
     }
 
     [Fact]
@@ -129,7 +129,11 @@ public class CoachTests
             [],
             [new Team(1, 3, "Arsenal", "ARS", 4, 4, 4)],
             [new PlayerPosition(3, "Midfielder", "MID", 5, 2, 5)],
-            [new Player(10, 223340, "Bukayo", "Saka", "Saka", 1, 3, 100, 0, 0, 5m, 30m, 0.4m, 0.2m, "d", "Knock", 75)]));
+            Enumerable.Range(10, 15)
+                .Select(id => id == 10
+                    ? new Player(id, 223340, "Bukayo", "Saka", "Saka", 1, 3, 100, 0, 0, 5m, 30m, 0.4m, 0.2m, "d", "Knock", 75)
+                    : new Player(id, id, $"Player {id}", "", $"Player {id}", 1, 3, 50, 0, 0, 1m, 1m, 0m, 0m, "a", "", null))
+                .ToArray()));
 
         public Task<Manager> GetManagerAsync(int managerId, CancellationToken cancellationToken) => TeamIsMissing
             ? throw new FplApiException($"entry/{managerId}/", System.Net.HttpStatusCode.NotFound)
@@ -141,7 +145,9 @@ public class CoachTests
             return Task.FromResult(new Squad(
                 null,
                 new SquadGameweekSummary(gameweek, 60, 400, 1000, 5, 1000, 0, 0, 5),
-                [new SquadPick(10, 1, 1, false, false, 3)]));
+                Enumerable.Range(1, 15)
+                    .Select(position => new SquadPick(position + 9, position, position <= 11 ? 1 : 0, false, false, 3))
+                    .ToArray()));
         }
 
         public Task<IReadOnlyList<Fixture>> GetFixturesAsync(CancellationToken cancellationToken) =>
@@ -153,11 +159,16 @@ public class CoachTests
 
     private sealed class RecordingCopilotChatClient : ICopilotChatClient
     {
-        public string? Prompt { get; private set; }
+        public string? Message { get; private set; }
+        public FplCoachContext? Context { get; private set; }
 
-        public Task<string> GenerateAsync(string prompt, CancellationToken cancellationToken)
+        public Task<string> GenerateAsync(
+            string message,
+            FplCoachContext context,
+            CancellationToken cancellationToken)
         {
-            Prompt = prompt;
+            Message = message;
+            Context = context;
             return Task.FromResult("Generated Copilot response");
         }
     }

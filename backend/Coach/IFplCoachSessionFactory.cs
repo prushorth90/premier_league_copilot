@@ -1,11 +1,12 @@
 using Backend.Coach.Models;
+using GitHub.Copilot;
 
 namespace Backend.Coach;
 
-public interface ICopilotChatClient
+public interface IFplCoachSessionFactory
 {
-    Task<string> GenerateAsync(
-        string message,
+    SessionConfig Create(
         FplCoachContext context,
+        string model,
         CancellationToken cancellationToken);
 }
