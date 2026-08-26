@@ -44,6 +44,8 @@ public sealed record FplPlayerDto(
     int NowCost,
     int TotalPoints,
     int EventPoints,
+    string Form,
+    string SelectedByPercent,
     string Status,
     string News,
     int? ChanceOfPlayingNextRound);

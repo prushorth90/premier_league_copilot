@@ -33,9 +33,12 @@ public sealed record FplPlayerResponse(
     decimal Price,
     int TotalPoints,
     int GameweekPoints,
+    decimal Form,
+    decimal OwnershipPercentage,
     string Status,
     string News,
-    int? ChanceOfPlayingNextRound);
+    int? ChanceOfPlayingNextRound,
+    string? UpcomingFixture);
 
 public sealed record FplFixtureResponse(
     int Id,

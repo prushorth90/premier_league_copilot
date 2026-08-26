@@ -24,7 +24,8 @@ public static class FplResponseMapper
     public static FplPlayerResponse ToResponse(
         this Player player,
         IReadOnlyDictionary<int, Team> teams,
-        IReadOnlyDictionary<int, PlayerPosition> positions) => new(
+        IReadOnlyDictionary<int, PlayerPosition> positions,
+        IReadOnlyDictionary<int, string> upcomingFixtures) => new(
         player.Id,
         player.Code,
         player.FirstName,
@@ -37,9 +38,12 @@ public static class FplResponseMapper
         ToMillions(player.Price),
         player.TotalPoints,
         player.GameweekPoints,
+        player.Form,
+        player.OwnershipPercentage,
         player.Status,
         player.News,
-        player.ChanceOfPlayingNextRound);
+        player.ChanceOfPlayingNextRound,
+        upcomingFixtures.GetValueOrDefault(player.TeamId));
 
     public static FplFixtureResponse ToResponse(
         this Fixture fixture,

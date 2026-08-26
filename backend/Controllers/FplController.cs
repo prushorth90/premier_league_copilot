@@ -82,12 +82,28 @@ public sealed class FplController(
     public async Task<ActionResult<IReadOnlyList<FplPlayerResponse>>> GetPlayersAsync(
         CancellationToken cancellationToken)
     {
-        var bootstrapData = await fplDataService.GetBootstrapDataAsync(cancellationToken);
+        var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
+        var fixturesTask = fplDataService.GetFixturesAsync(cancellationToken);
+        await Task.WhenAll(bootstrapTask, fixturesTask);
+
+        var bootstrapData = await bootstrapTask;
+        var fixtures = await fixturesTask;
         var teams = bootstrapData.Teams.ToDictionary(team => team.Id);
         var positions = bootstrapData.PlayerPositions.ToDictionary(position => position.Id);
+        var nextGameweekId = bootstrapData.Gameweeks.FirstOrDefault(gameweek => gameweek.IsNext)?.Id;
+        var upcomingFixtures = nextGameweekId is null
+            ? new Dictionary<int, string>()
+            : fixtures
+                .Where(fixture => fixture.Gameweek == nextGameweekId)
+                .SelectMany(fixture => new[]
+                {
+                    new KeyValuePair<int, string>(fixture.HomeTeamId, $"{teams.GetValueOrDefault(fixture.AwayTeamId)?.ShortName ?? "TBC"} (H)"),
+                    new KeyValuePair<int, string>(fixture.AwayTeamId, $"{teams.GetValueOrDefault(fixture.HomeTeamId)?.ShortName ?? "TBC"} (A)")
+                })
+                .ToDictionary(item => item.Key, item => item.Value);
 
         return Ok(bootstrapData.Players
-            .Select(player => player.ToResponse(teams, positions))
+            .Select(player => player.ToResponse(teams, positions, upcomingFixtures))
             .ToArray());
     }
 

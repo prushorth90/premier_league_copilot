@@ -33,9 +33,12 @@ export interface FplPlayer {
   price: number
   totalPoints: number
   gameweekPoints: number
+  form: number
+  ownershipPercentage: number
   status: string
   news: string
   chanceOfPlayingNextRound: number | null
+  upcomingFixture: string | null
 }
 
 export interface FplFixture {
