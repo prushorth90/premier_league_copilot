@@ -11,12 +11,27 @@ public sealed class CopilotCoachService(
     IPlayerRecommendationService recommendationService,
     TimeProvider timeProvider) : ICoachService
 {
-    public async Task<CoachChatResponse> ReplyAsync(
+    public Task<CoachChatResponse> ReplyAsync(
         int teamId,
         string message,
+        CancellationToken cancellationToken) =>
+        ReplyCoreAsync(teamId, message, null, cancellationToken);
+
+    public Task<CoachChatResponse> ReplyWithProgressAsync(
+        int teamId,
+        string message,
+        ICoachProgressSink progressSink,
+        CancellationToken cancellationToken) =>
+        ReplyCoreAsync(teamId, message, progressSink, cancellationToken);
+
+    private async Task<CoachChatResponse> ReplyCoreAsync(
+        int teamId,
+        string message,
+        ICoachProgressSink? progressSink,
         CancellationToken cancellationToken)
     {
         var normalizedMessage = message.Trim();
+        await ReportAsync(progressSink, "loading-squad", "Loading squad context", cancellationToken);
         var managerTask = fplDataService.GetManagerAsync(teamId, cancellationToken);
         var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
         await Task.WhenAll(managerTask, bootstrapTask);
@@ -46,7 +61,13 @@ public sealed class CopilotCoachService(
         PlayerRecommendationResult? recommendation = null;
         if (matchedPlayer is not null && recommendationType == CoachRecommendationType.Availability)
         {
+            await ReportAsync(progressSink, "checking-availability", "Checking player availability", cancellationToken);
             availability = factService.GetPlayerAvailability(context, matchedPlayer.Id);
+            if (MayMissMatches(availability))
+            {
+                await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
+                await ReportAsync(progressSink, "comparing-replacements", "Comparing replacements", cancellationToken);
+            }
             recommendation = await recommendationService.GetRecommendationIfAtRiskAsync(
                 context,
                 availability,
@@ -56,6 +77,9 @@ public sealed class CopilotCoachService(
         }
         else if (matchedPlayer is not null && RequiresRecommendation(recommendationType))
         {
+            await ReportAsync(progressSink, "checking-availability", "Checking player availability", cancellationToken);
+            await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
+            await ReportAsync(progressSink, "comparing-replacements", "Comparing replacements", cancellationToken);
             recommendation = await recommendationService.GetRecommendationAsync(
                 context,
                 matchedPlayer.Id,
@@ -65,19 +89,23 @@ public sealed class CopilotCoachService(
             availability = recommendation.Availability;
         }
 
-        var fixtures = recommendation?.Fixtures ?? (recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null
-            ? await factService.GetUpcomingFixturesAsync(
+        PlayerFixtureWindowResult? fixtures = recommendation?.Fixtures;
+        if (fixtures is null && recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null)
+        {
+            await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
+            fixtures = await factService.GetUpcomingFixturesAsync(
                 context,
                 matchedPlayer.Id,
                 GetRequestedGameweeks(normalizedMessage),
-                cancellationToken)
-            : null);
+                cancellationToken);
+        }
         var transfers = recommendation?.Transfers;
         var confidence = recommendation?.Confidence
             ?? availability?.Confidence
             ?? transfers?.Candidates.FirstOrDefault()?.Confidence
             ?? GetConfidence(recommendationType, matchedPlayer);
         var grounding = CreateGrounding(availability, fixtures, transfers, recommendation);
+        await ReportAsync(progressSink, "preparing-answer", "Preparing recommendation", cancellationToken);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, grounding, cancellationToken);
         reply = EnsureRecommendationIsGrounded(reply, recommendation);
         reply = EnsureAvailabilityClaimIsGrounded(
@@ -101,6 +129,17 @@ public sealed class CopilotCoachService(
             recommendation,
             structuredRecommendation);
     }
+
+    private static bool MayMissMatches(PlayerAvailabilityResult availability) =>
+        availability.Status is "d" or "i" or "s" or "u" or "n"
+        || availability.ChanceOfPlayingNextRound is int chance && chance < 75;
+
+    private static ValueTask ReportAsync(
+        ICoachProgressSink? progressSink,
+        string code,
+        string message,
+        CancellationToken cancellationToken) =>
+        progressSink?.ReportAsync(new CoachProgressUpdate(code, message), cancellationToken) ?? ValueTask.CompletedTask;
 
     private static CoachStructuredRecommendation MapStructuredRecommendation(
         CoachPlayerInfo player,

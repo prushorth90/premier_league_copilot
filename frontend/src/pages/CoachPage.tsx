@@ -1,6 +1,6 @@
-import { AlertCircle, ArrowRightLeft, Bot, CalendarDays, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertCircle, ArrowRightLeft, Bot, CalendarDays, Check, LoaderCircle, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
-import { sendCoachMessage } from '../api/coachApi'
+import { sendCoachMessageStream } from '../api/coachApi'
 import { ApiError } from '../api/fplApi'
 import { PageHeader } from '../components/ui/PageHeader'
 import type { CoachChatMessage, CoachStructuredRecommendation } from '../models/coach'
@@ -28,6 +28,7 @@ export function CoachPage() {
   const [isSending, setIsSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [failedMessage, setFailedMessage] = useState<string | null>(null)
+  const [progressStatuses, setProgressStatuses] = useState<string[]>([])
 
   async function requestReply(message: string, appendUser: boolean) {
     if (!teamId || isSending) return
@@ -38,10 +39,14 @@ export function CoachPage() {
     setDraft('')
     setError(null)
     setFailedMessage(null)
+    setProgressStatuses([])
     setIsSending(true)
 
     try {
-      const response = await sendCoachMessage({ teamId, message })
+      const response = await sendCoachMessageStream(
+        { teamId, message },
+        (update) => setProgressStatuses((current) => current.includes(update.message) ? current : [...current, update.message]),
+      )
       setMessages((current) => [...current, {
         id: createId(),
         role: 'assistant',
@@ -61,6 +66,7 @@ export function CoachPage() {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
       setFailedMessage(message)
     } finally {
+      setProgressStatuses([])
       setIsSending(false)
     }
   }
@@ -86,8 +92,10 @@ export function CoachPage() {
             {isSending && (
               <div className="flex items-start gap-3">
                 <Avatar role="assistant" />
-                <div className="border border-black/10 bg-white px-4 py-3 text-sm text-black/45">
-                  <span className="inline-flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-[#287c50]" /> Coach is thinking</span>
+                <div className="min-w-56 border border-black/10 bg-white px-4 py-3 text-sm text-black/55" aria-label="Coach progress">
+                  {progressStatuses.length === 0
+                    ? <span className="inline-flex items-center gap-2"><LoaderCircle className="animate-spin" size={14} /> Starting analysis</span>
+                    : <ol className="space-y-1.5">{progressStatuses.map((status, index) => <li key={status} className="flex items-center gap-2 text-xs">{index === progressStatuses.length - 1 ? <LoaderCircle className="animate-spin text-[#287c50]" size={13} /> : <Check className="text-[#287c50]" size={13} />}<span>{status}</span></li>)}</ol>}
                 </div>
               </div>
             )}

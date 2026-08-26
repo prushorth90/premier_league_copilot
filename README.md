@@ -253,6 +253,14 @@ The strongly typed response includes the conversational `message`, recommendatio
 
 The React coach renders `message` as normal conversation text. When `structuredRecommendation` is non-null, it renders a separate recommendation card directly underneath with the action, player, confidence, injury status, fixture rating, replacement, and projected impact; the detailed specialist panels remain available below it.
 
+The chat interface submits new messages to `POST /api/coach/chat/stream`, which returns `text/event-stream` over the same POST body as the JSON endpoint. The original `POST /api/coach/chat` remains available for non-streaming clients. Streaming uses three event types:
+
+- `progress` contains only a fixed `code` and high-level `message`, such as `Checking player availability`, `Analyzing upcoming fixtures`, or `Comparing replacements`.
+- `complete` contains the same strongly typed `CoachChatResponse` returned by the JSON endpoint.
+- `error` contains a sanitized user-facing failure message.
+
+ASP.NET Core disables proxy buffering and flushes each SSE event immediately. Progress originates at C# orchestration boundaries and never includes prompts, tool payloads, chain-of-thought, or raw agent reasoning. React displays received statuses while the request is active, then removes the progress panel and replaces it with the final conversational answer and recommendation card when `complete` arrives.
+
 The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly, `IFplCoachFactService` owns read-only fact retrieval, and `ICopilotChatClient` isolates all SDK sessions and custom-agent configuration.
 
 The SDK can use its bundled runtime with `COPILOT_GITHUB_TOKEN`, or connect to a private external headless runtime using `COPILOT_RUNTIME_URL` and an optional connection token. The GitHub account or organization must permit Copilot SDK/CLI features. A valid token alone is insufficient when enterprise or organization policy disables SDK access.

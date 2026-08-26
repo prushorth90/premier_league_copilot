@@ -144,6 +144,57 @@ public class CoachTests
         Assert.Equal(StatusCodes.Status400BadRequest, result.StatusCode);
     }
 
+    [Fact]
+    public async Task CopilotCoachServiceReportsOnlyHighLevelProgressForInjuryWorkflow()
+    {
+        var progress = new RecordingProgressSink();
+        var service = new CopilotCoachService(
+            new StubFplDataService(),
+            new RecordingCopilotChatClient(),
+            new StubCoachFactService(),
+            new StubPlayerRecommendationService(),
+            TimeProvider.System);
+
+        await service.ReplyWithProgressAsync(42, "Saka is injured", progress, CancellationToken.None);
+
+        Assert.Equal(
+            [
+                "Loading squad context",
+                "Checking player availability",
+                "Analyzing upcoming fixtures",
+                "Comparing replacements",
+                "Preparing recommendation"
+            ],
+            progress.Updates.Select(update => update.Message));
+        Assert.All(progress.Updates, update => Assert.DoesNotContain("reason", update.Message, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task StreamChatAsyncWritesProgressThenFinalResponseAsSse()
+    {
+        var controller = new CoachController(new StreamingCoachService());
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+
+        await controller.StreamChatAsync(
+            new CoachChatRequest(42, "Saka is injured"),
+            CancellationToken.None);
+
+        httpContext.Response.Body.Position = 0;
+        using var reader = new StreamReader(httpContext.Response.Body);
+        var body = await reader.ReadToEndAsync();
+        Assert.Equal("text/event-stream", httpContext.Response.ContentType);
+        Assert.Equal("no-cache, no-transform", httpContext.Response.Headers.CacheControl);
+        Assert.Equal("no", httpContext.Response.Headers["X-Accel-Buffering"]);
+        Assert.Contains("event: progress\ndata: {\"code\":\"checking-availability\",\"message\":\"Checking player availability\"}", body);
+        Assert.Contains("event: progress\ndata: {\"code\":\"analyzing-fixtures\",\"message\":\"Analyzing upcoming fixtures\"}", body);
+        Assert.Contains("event: progress\ndata: {\"code\":\"comparing-replacements\",\"message\":\"Comparing replacements\"}", body);
+        Assert.Contains("event: complete\ndata: {\"message\":\"Final recommendation.\"", body);
+        Assert.True(body.IndexOf("event: progress", StringComparison.Ordinal) < body.IndexOf("event: complete", StringComparison.Ordinal));
+        Assert.DoesNotContain("chain-of-thought", body, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class RecordingCoachService : ICoachService
     {
         public int TeamId { get; private set; }
@@ -161,6 +212,44 @@ public class CoachTests
                 CoachRecommendationType.General,
                 35m,
                 null));
+        }
+    }
+
+    private sealed class StreamingCoachService : ICoachService
+    {
+        public Task<CoachChatResponse> ReplyAsync(int teamId, string message, CancellationToken cancellationToken) =>
+            Task.FromResult(CreateResponse(teamId));
+
+        public async Task<CoachChatResponse> ReplyWithProgressAsync(
+            int teamId,
+            string message,
+            ICoachProgressSink progressSink,
+            CancellationToken cancellationToken)
+        {
+            await progressSink.ReportAsync(new CoachProgressUpdate("checking-availability", "Checking player availability"), cancellationToken);
+            await progressSink.ReportAsync(new CoachProgressUpdate("analyzing-fixtures", "Analyzing upcoming fixtures"), cancellationToken);
+            await progressSink.ReportAsync(new CoachProgressUpdate("comparing-replacements", "Comparing replacements"), cancellationToken);
+            return CreateResponse(teamId);
+        }
+
+        private static CoachChatResponse CreateResponse(int teamId) => new(
+            "Final recommendation.",
+            teamId,
+            DateTimeOffset.UtcNow,
+            false,
+            CoachRecommendationType.Recommendation,
+            80m,
+            null);
+    }
+
+    private sealed class RecordingProgressSink : ICoachProgressSink
+    {
+        public List<CoachProgressUpdate> Updates { get; } = [];
+
+        public ValueTask ReportAsync(CoachProgressUpdate update, CancellationToken cancellationToken)
+        {
+            Updates.Add(update);
+            return ValueTask.CompletedTask;
         }
     }
 

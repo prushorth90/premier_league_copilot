@@ -5,9 +5,9 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../api/fplApi'
 
-const coachApiMock = vi.hoisted(() => ({ sendCoachMessage: vi.fn() }))
+const coachApiMock = vi.hoisted(() => ({ sendCoachMessageStream: vi.fn() }))
 
-vi.mock('../api/coachApi', () => ({ sendCoachMessage: coachApiMock.sendCoachMessage }))
+vi.mock('../api/coachApi', () => ({ sendCoachMessageStream: coachApiMock.sendCoachMessageStream }))
 vi.mock('../team/useTeam', () => ({ useTeam: () => ({ teamId: 7558250 }) }))
 
 import { CoachPage } from './CoachPage'
@@ -19,7 +19,7 @@ describe('CoachPage', () => {
   })
 
   it('sends the connected Team ID and displays the mocked assistant response', async () => {
-    coachApiMock.sendCoachMessage.mockResolvedValue({
+    coachApiMock.sendCoachMessageStream.mockResolvedValue({
       message: 'Compare Saka with the best same-position replacements.',
       teamId: 7558250,
       respondedAt: '2026-08-26T12:00:00Z',
@@ -112,7 +112,10 @@ describe('CoachPage', () => {
     await user.click(screen.getByRole('button', { name: 'Send message' }))
 
     expect(await screen.findByText('Compare Saka with the best same-position replacements.')).toBeTruthy()
-    expect(coachApiMock.sendCoachMessage).toHaveBeenCalledWith({ teamId: 7558250, message: 'Should I sell Saka?' })
+    expect(coachApiMock.sendCoachMessageStream).toHaveBeenCalledWith(
+      { teamId: 7558250, message: 'Should I sell Saka?' },
+      expect.any(Function),
+    )
     expect(screen.queryByText('Mocked response')).toBeNull()
     expect(screen.getByText('Transfer')).toBeTruthy()
     expect(screen.getByText('68% confidence')).toBeTruthy()
@@ -134,22 +137,29 @@ describe('CoachPage', () => {
 
   it('shows a pending assistant state while waiting', async () => {
     let resolveResponse: (value: unknown) => void = () => undefined
-    coachApiMock.sendCoachMessage.mockReturnValue(new Promise((resolve) => { resolveResponse = resolve }))
+    coachApiMock.sendCoachMessageStream.mockReturnValue(new Promise((resolve) => { resolveResponse = resolve }))
     const user = userEvent.setup()
     render(<CoachPage />)
 
     await user.type(screen.getByLabelText('Message AI Coach'), 'Saka is injured')
     await user.click(screen.getByRole('button', { name: 'Send message' }))
 
-    expect(screen.getByText('Coach is thinking')).toBeTruthy()
+    expect(screen.getByText('Starting analysis')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
+
+    const onProgress = coachApiMock.sendCoachMessageStream.mock.calls[0][1]
+    onProgress({ code: 'checking-availability', message: 'Checking player availability' })
+    expect(await screen.findByText('Checking player availability')).toBeTruthy()
+    onProgress({ code: 'analyzing-fixtures', message: 'Analyzing upcoming fixtures' })
+    expect(await screen.findByText('Analyzing upcoming fixtures')).toBeTruthy()
 
     resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null, recommendation: null, structuredRecommendation: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
+    expect(screen.queryByLabelText('Coach progress')).toBeNull()
   })
 
   it('renders structured fixture difficulty results', async () => {
-    coachApiMock.sendCoachMessage.mockResolvedValue({
+    coachApiMock.sendCoachMessageStream.mockResolvedValue({
       message: 'Saka has a favorable upcoming schedule.',
       teamId: 7558250,
       respondedAt: '2026-08-26T12:00:00Z',
@@ -189,7 +199,7 @@ describe('CoachPage', () => {
   })
 
   it('shows an error and retries without duplicating the user message', async () => {
-    coachApiMock.sendCoachMessage
+    coachApiMock.sendCoachMessageStream
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
       .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null, recommendation: null, structuredRecommendation: null })
     const user = userEvent.setup()
@@ -202,7 +212,7 @@ describe('CoachPage', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(await screen.findByText('Recovered reply.')).toBeTruthy()
-    expect(coachApiMock.sendCoachMessage).toHaveBeenCalledTimes(2)
+    expect(coachApiMock.sendCoachMessageStream).toHaveBeenCalledTimes(2)
     expect(screen.getAllByText('Sell Martinelli?')).toHaveLength(1)
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   })
