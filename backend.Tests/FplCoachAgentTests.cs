@@ -17,53 +17,45 @@ public class FplCoachAgentTests
         var parent = Assert.Single(agents, agent => agent.Name == "FplCoachAgent");
         Assert.Equal(["task"], parent.Tools);
         Assert.False(parent.Infer);
-        Assert.Contains("Never invent injuries", parent.Prompt);
-        Assert.Contains("You are **FplCoachAgent**", parent.Prompt);
+        Assert.Contains("Never invent injuries", parent.Instructions);
+        Assert.Contains("You are **FplCoachAgent**", parent.Instructions);
 
         var injury = Assert.Single(agents, agent => agent.Name == FplCoachAgents.InjurySpecialistName);
         Assert.Equal("InjuryAgent", injury.Name);
         Assert.Equal([FplCoachAgents.AvailabilityTool], injury.Tools);
         Assert.True(injury.Infer);
-        Assert.Contains("Official FPL data does not confirm", injury.Prompt);
-        Assert.Contains("expected minutes are unavailable", injury.Prompt);
-        Assert.Contains("Do not analyze fixtures", injury.Prompt);
+        Assert.Contains("Official FPL data does not confirm", injury.Instructions);
+        Assert.Contains("expected minutes are unavailable", injury.Instructions);
+        Assert.Contains("Do not analyze fixtures", injury.Instructions);
         var fixture = Assert.Single(agents, agent => agent.Name == FplCoachAgents.FixtureSpecialistName);
         Assert.Equal("FixtureAgent", fixture.Name);
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
-        Assert.Contains("get_upcoming_fixtures(playerId, 1)", fixture.Prompt);
-        Assert.Contains("get_upcoming_fixtures(playerId, 3)", fixture.Prompt);
-        Assert.Contains("get_upcoming_fixtures(playerId, 5)", fixture.Prompt);
-        Assert.Contains("Never calculate, average, merge, rescore, or invent", fixture.Prompt);
-        Assert.Contains("Do not recommend", fixture.Prompt);
+        Assert.Contains("get_upcoming_fixtures(playerId, 1)", fixture.Instructions);
+        Assert.Contains("get_upcoming_fixtures(playerId, 3)", fixture.Instructions);
+        Assert.Contains("get_upcoming_fixtures(playerId, 5)", fixture.Instructions);
+        Assert.Contains("Never calculate, average, merge, rescore, or invent", fixture.Instructions);
+        Assert.Contains("Do not recommend", fixture.Instructions);
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
         Assert.Equal("TransferAgent", transfer.Name);
         Assert.Equal([FplCoachAgents.TransfersTool], transfer.Tools);
-        Assert.Contains("no more than three players from one club", transfer.Prompt);
-        Assert.Contains("projected-point difference", transfer.Prompt, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("exact rank order returned by C#", transfer.Prompt);
-        Assert.Contains("Do not suggest an unreturned player", transfer.Prompt);
+        Assert.Contains("no more than three players from one club", transfer.Instructions);
+        Assert.Contains("projected-point difference", transfer.Instructions, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exact rank order returned by C#", transfer.Instructions);
+        Assert.Contains("Do not suggest an unreturned player", transfer.Instructions);
         Assert.Equal(4, agents.Count);
-        Assert.Contains("invoke InjuryAgent first", parent.Prompt);
-        Assert.Contains("may run concurrently", parent.Prompt);
+        Assert.Contains("invoke InjuryAgent first", parent.Instructions);
+        Assert.Contains("may run concurrently", parent.Instructions);
     }
 
     [Fact]
-    public void SessionFactorySelectsParentAndRegistersFactTools()
+    public void MarkdownToolNamesMatchApplicationToolRegistry()
     {
-        var factService = new FplCoachFactService(new StubFplDataService(), new StubTransferService());
-        var factory = new FplCoachSessionFactory(factService, CreateAgentProvider());
+        var agents = CreateAgentProvider().GetAgents();
 
-        var config = factory.Create(CreateContext(), "auto", CancellationToken.None);
-
-        Assert.Equal(FplCoachAgents.ParentName, config.Agent);
-        Assert.Equal("auto", config.Model);
-        Assert.Equal(4, config.CustomAgents?.Count);
+        Assert.Equal(["task"], agents.Single(agent => agent.Name == FplCoachAgents.ParentName).Tools);
         Assert.Equal(
             [FplCoachAgents.AvailabilityTool, FplCoachAgents.TransfersTool, FplCoachAgents.FixturesTool],
-            config.Tools?.Select(tool => tool.Name).Order());
-        Assert.Contains("builtin:task", config.AvailableTools!);
-        Assert.Contains($"custom:{FplCoachAgents.AvailabilityTool}", config.AvailableTools!);
-        Assert.NotNull(config.OnPermissionRequest);
+            agents.Where(agent => agent.Name != FplCoachAgents.ParentName).SelectMany(agent => agent.Tools).Order());
     }
 
     [Fact]
@@ -97,6 +89,27 @@ public class FplCoachAgentTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public void MarkdownAgentProviderLogsEveryLoadedFileNameAgentAndToolSet()
+    {
+        var logger = new RecordingLogger<MarkdownFplCoachAgentProvider>();
+
+        _ = new MarkdownFplCoachAgentProvider(AgentDirectory(), logger);
+
+        Assert.All(
+            new[]
+            {
+                ("fpl-coach.agent.md", FplCoachAgents.ParentName, "task"),
+                ("injury.agent.md", FplCoachAgents.InjurySpecialistName, FplCoachAgents.AvailabilityTool),
+                ("fixture.agent.md", FplCoachAgents.FixtureSpecialistName, FplCoachAgents.FixturesTool),
+                ("transfer.agent.md", FplCoachAgents.TransferSpecialistName, FplCoachAgents.TransfersTool)
+            },
+            expected => Assert.Contains(logger.Messages, message =>
+                message.Contains(expected.Item1, StringComparison.Ordinal)
+                && message.Contains(expected.Item2, StringComparison.Ordinal)
+                && message.Contains(expected.Item3, StringComparison.Ordinal)));
     }
 
     [Fact]

@@ -82,7 +82,7 @@ export function CoachPage() {
       <PageHeader
         eyebrow="Team-aware conversation"
         title="AI Coach"
-        description="Chat with GitHub Copilot using structured context from your connected FPL squad."
+        description="Ask for grounded guidance using structured context from your connected FPL squad."
       />
 
       <div className="grid min-h-[38rem] overflow-hidden border border-black/10 bg-white lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -138,7 +138,7 @@ export function CoachPage() {
           <div className="mt-6 flex items-start gap-2 border-y border-white/10 py-4 text-xs leading-5 text-white/55"><ShieldCheck className="mt-0.5 shrink-0 text-[#77d6c5]" size={16} /><p>Your connected Team ID is included with every message.</p></div>
           <p className="mt-6 text-[10px] font-bold uppercase text-[#b8ff3d]">Try asking</p>
           <div className="mt-3 space-y-2">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void requestReply(suggestion, true)} disabled={isSending} className="w-full border border-white/10 px-3 py-3 text-left text-xs font-semibold text-white/70 hover:border-[#b8ff3d]/50 hover:text-white disabled:opacity-40">{suggestion}</button>)}</div>
-          <p className="mt-6 text-[10px] leading-4 text-white/35">Copilot runs only in the ASP.NET backend. SDK credentials and model calls never reach this browser.</p>
+          <p className="mt-6 text-[10px] leading-4 text-white/35">Availability, fixtures, transfer constraints, and recommendations are evaluated deterministically in the ASP.NET backend.</p>
         </aside>
       </div>
     </>

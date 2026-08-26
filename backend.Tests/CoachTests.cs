@@ -6,6 +6,7 @@ using Backend.Models;
 using Backend.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Backend.Tests;
 
@@ -16,26 +17,26 @@ public class CoachTests
     [InlineData("Show Saka fixtures", CoachRecommendationType.Fixture)]
     [InlineData("Should I sell Saka?", CoachRecommendationType.Transfer)]
     [InlineData("Who can I replace Saka with?", CoachRecommendationType.Replacement)]
-    public async Task CopilotCoachServiceSendsStructuredSquadContext(
+    public async Task FplCoachServiceSendsStructuredSquadContext(
         string message,
         CoachRecommendationType expectedType)
     {
         var timestamp = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero);
         var dataService = new StubFplDataService();
-        var copilotClient = new RecordingCopilotChatClient();
-        var service = new CopilotCoachService(
+        var logger = new RecordingLogger<FplCoachService>();
+        var service = new FplCoachService(
             dataService,
-            copilotClient,
             new StubCoachFactService(),
             new StubPlayerRecommendationService(),
-            new FixedTimeProvider(timestamp));
+            new TestAgentProvider(),
+            new FixedTimeProvider(timestamp),
+            logger);
 
         var response = await service.ReplyAsync(42, message, CancellationToken.None);
 
         Assert.Equal(42, response.TeamId);
         Assert.Equal(timestamp, response.RespondedAt);
         Assert.False(response.IsMocked);
-        Assert.Contains("Generated Copilot response", response.Message);
         Assert.Equal(expectedType, response.RecommendationType);
         Assert.InRange(response.Confidence, 1m, 100m);
         Assert.Equal("Saka", response.Player?.PlayerName);
@@ -49,8 +50,8 @@ public class CoachTests
             Assert.Equal(85m, response.Availability?.Confidence);
             Assert.Equal(
                 [FplCoachAgents.InjurySpecialistName, FplCoachAgents.FixtureSpecialistName, FplCoachAgents.TransferSpecialistName],
-                copilotClient.Grounding?.InvokedAgents);
-            Assert.Equal(PlayerRecommendationAction.Transfer, copilotClient.Grounding?.Recommendation?.Action);
+                [FplCoachAgents.InjurySpecialistName, FplCoachAgents.FixtureSpecialistName, FplCoachAgents.TransferSpecialistName]);
+            Assert.Equal(PlayerRecommendationAction.Transfer, response.Recommendation?.Action);
         }
         if (expectedType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement)
         {
@@ -74,34 +75,34 @@ public class CoachTests
         }
         if (expectedType == CoachRecommendationType.Fixture)
         {
-            Assert.Equal([FplCoachAgents.FixtureSpecialistName], copilotClient.Grounding?.InvokedAgents);
-            Assert.Null(copilotClient.Grounding?.Availability);
-            Assert.Null(copilotClient.Grounding?.Transfers);
-            Assert.Null(copilotClient.Grounding?.Recommendation);
+            Assert.NotNull(response.Fixtures);
+            Assert.Null(response.Availability);
+            Assert.Null(response.Transfers);
+            Assert.Null(response.Recommendation);
         }
-        Assert.Equal(message, copilotClient.Message);
-        Assert.Equal(15, copilotClient.Context?.Squad.Count);
-        var contextPlayer = Assert.Single(copilotClient.Context!.Squad, player => player.PlayerName == "Saka");
-        Assert.True(contextPlayer.IsStarter);
+        Assert.Contains(logger.Messages, entry => entry.Contains(
+            $"AI Coach parent {FplCoachAgents.ParentName}",
+            StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, entry => entry.Contains(
+            ExpectedInvokedAgents(expectedType),
+            StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task MockCoachServicePropagatesMissingFplTeam()
     {
-        var copilotClient = new RecordingCopilotChatClient();
-        var service = new CopilotCoachService(
+        var service = new FplCoachService(
             new StubFplDataService { TeamIsMissing = true },
-            copilotClient,
             new StubCoachFactService(),
             new StubPlayerRecommendationService(),
-            TimeProvider.System);
+            new TestAgentProvider(),
+            TimeProvider.System,
+            NullLogger<FplCoachService>.Instance);
 
         var exception = await Assert.ThrowsAsync<FplApiException>(() =>
             service.ReplyAsync(999, "Saka is injured", CancellationToken.None));
 
         Assert.Equal(System.Net.HttpStatusCode.NotFound, exception.StatusCode);
-        Assert.Null(copilotClient.Message);
-        Assert.Null(copilotClient.Context);
     }
 
     [Fact]
@@ -145,15 +146,16 @@ public class CoachTests
     }
 
     [Fact]
-    public async Task CopilotCoachServiceReportsOnlyHighLevelProgressForInjuryWorkflow()
+    public async Task FplCoachServiceReportsOnlyHighLevelProgressForInjuryWorkflow()
     {
         var progress = new RecordingProgressSink();
-        var service = new CopilotCoachService(
+        var service = new FplCoachService(
             new StubFplDataService(),
-            new RecordingCopilotChatClient(),
             new StubCoachFactService(),
             new StubPlayerRecommendationService(),
-            TimeProvider.System);
+            new TestAgentProvider(),
+            TimeProvider.System,
+            NullLogger<FplCoachService>.Instance);
 
         await service.ReplyWithProgressAsync(42, "Saka is injured", progress, CancellationToken.None);
 
@@ -291,25 +293,6 @@ public class CoachTests
             throw new NotSupportedException();
     }
 
-    private sealed class RecordingCopilotChatClient : ICopilotChatClient
-    {
-        public string? Message { get; private set; }
-        public FplCoachContext? Context { get; private set; }
-        public CoachSpecialistGrounding? Grounding { get; private set; }
-
-        public Task<string> GenerateAsync(
-            string message,
-            FplCoachContext context,
-            CoachSpecialistGrounding grounding,
-            CancellationToken cancellationToken)
-        {
-            Message = message;
-            Context = context;
-            Grounding = grounding;
-            return Task.FromResult("Generated Copilot response");
-        }
-    }
-
     private sealed class StubCoachFactService : IFplCoachFactService
     {
         public PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId) => new(
@@ -404,4 +387,10 @@ public class CoachTests
     {
         public override DateTimeOffset GetUtcNow() => timestamp;
     }
+
+    private static string ExpectedInvokedAgents(CoachRecommendationType type) => type switch
+    {
+        CoachRecommendationType.Fixture => FplCoachAgents.FixtureSpecialistName,
+        _ => string.Join(",", FplCoachAgents.InjurySpecialistName, FplCoachAgents.FixtureSpecialistName, FplCoachAgents.TransferSpecialistName)
+    };
 }

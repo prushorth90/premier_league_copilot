@@ -1,5 +1,3 @@
-using GitHub.Copilot;
-
 namespace Backend.Coach;
 
 public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
@@ -12,21 +10,34 @@ public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
         new("transfer.agent.md", FplCoachAgents.TransferSpecialistName, "Transfer Agent", [FplCoachAgents.TransfersTool], true)
     ];
 
-    private readonly IReadOnlyList<CustomAgentConfig> agents;
+    private readonly IReadOnlyList<FplCoachAgentDefinition> agents;
 
-    public MarkdownFplCoachAgentProvider(IHostEnvironment environment)
-        : this(ResolveAgentDirectory(environment.ContentRootPath))
+    public MarkdownFplCoachAgentProvider(
+        IHostEnvironment environment,
+        ILogger<MarkdownFplCoachAgentProvider> logger)
+        : this(ResolveAgentDirectory(environment.ContentRootPath), logger)
     {
     }
 
-    public MarkdownFplCoachAgentProvider(string agentDirectory)
+    public MarkdownFplCoachAgentProvider(
+        string agentDirectory,
+        ILogger<MarkdownFplCoachAgentProvider>? logger = null)
     {
-        agents = Definitions.Select(definition => Load(agentDirectory, definition)).ToArray();
+        agents = Definitions.Select(definition =>
+        {
+            var agent = Load(agentDirectory, definition);
+            logger?.LogInformation(
+                "Loaded Copilot agent file {AgentFile} as {AgentName} with tools {AgentTools}",
+                Path.Combine(agentDirectory, definition.FileName),
+                agent.Name,
+                agent.Tools.Count == 0 ? "none" : string.Join(",", agent.Tools));
+            return agent;
+        }).ToArray();
     }
 
-    public IReadOnlyList<CustomAgentConfig> GetAgents() => agents;
+    public IReadOnlyList<FplCoachAgentDefinition> GetAgents() => agents;
 
-    private static CustomAgentConfig Load(string directory, AgentDefinition definition)
+    private static FplCoachAgentDefinition Load(string directory, AgentDefinition definition)
     {
         var path = Path.Combine(directory, definition.FileName);
         if (!File.Exists(path))
@@ -62,15 +73,13 @@ public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
             throw new InvalidOperationException($"Agent file '{definition.FileName}' must contain Markdown instructions.");
         }
 
-        return new CustomAgentConfig
-        {
-            Name = definition.Name,
-            DisplayName = definition.DisplayName,
-            Description = description,
-            Tools = tools.ToList(),
-            Infer = definition.Infer,
-            Prompt = document.Prompt
-        };
+        return new FplCoachAgentDefinition(
+            definition.Name,
+            definition.DisplayName,
+            description,
+            tools,
+            definition.Infer,
+            document.Prompt);
     }
 
     private static AgentDocument ParseDocument(string content, string fileName)

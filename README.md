@@ -184,7 +184,7 @@ The React `PlayerHeadshot` component uses intrinsic `110x140` dimensions, fixed 
 
 ### AI Coach
 
-The AI Coach uses the official `GitHub.Copilot.SDK` .NET package entirely inside the ASP.NET backend. The React application sends only the natural-language message and connected public FPL Team ID to `POST /api/coach/chat`; it never receives a GitHub token, SDK configuration, model credential, prompt context, or direct model endpoint.
+The AI Coach runs entirely inside the ASP.NET backend without a model runtime or GitHub Copilot SDK dependency. The React application sends only the natural-language message and connected public FPL Team ID to `POST /api/coach/chat` or the streaming endpoint.
 
 ```json
 {
@@ -193,7 +193,7 @@ The AI Coach uses the official `GitHub.Copilot.SDK` .NET package entirely inside
 }
 ```
 
-The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, and rejects an incomplete or duplicate squad. It passes the resulting typed 15-player context and the user's message into a fresh Copilot session with `FplCoachAgent` selected as the parent custom agent.
+The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, and rejects an incomplete or duplicate squad. It uses the resulting typed 15-player context to select the required Markdown-defined specialist tool paths.
 
 Agent behavior is defined in repository-level Markdown rather than embedded C# prompts:
 
@@ -202,15 +202,19 @@ Agent behavior is defined in repository-level Markdown rather than embedded C# p
 - `.github/agents/fixture.agent.md`
 - `.github/agents/transfer.agent.md`
 
-`MarkdownFplCoachAgentProvider` reads YAML frontmatter and Markdown instructions from those files and maps them to SDK `CustomAgentConfig` instances. The files are linked into .NET build/publish output and copied into both development and production containers. Loading fails closed if a required file, name, description, prompt, or exact tool declaration is missing or changed. C# remains authoritative for registered application tools, exact tool allowlists, FPL API access, validation, projections, budget and club constraints, orchestration, and deterministic recommendations.
+`MarkdownFplCoachAgentProvider` reads YAML frontmatter and Markdown instructions into application-owned immutable definitions. The files are linked into .NET build/publish output and copied into both development and production containers. Loading fails closed if a required file, name, description, instructions, or exact tool declaration is missing or changed. C# is authoritative for application tools, exact tool allowlists, FPL API access, validation, projections, budget and club constraints, orchestration, deterministic recommendations, and final response composition.
 
-`FplCoachAgent` interprets the request and delegates factual investigation to the initial specialist agents:
+`FplCoachAgent` is the parent definition. InjuryAgent, FixtureAgent, and TransferAgent each declare only their corresponding backend tool. For requests such as `Saka is injured`, ASP.NET Core loads the current connected squad, follows the parent delegation rules, executes the required specialist tool paths, passes their structured outputs through `PlayerRecommendationService`, and composes the final response deterministically.
+
+Structured logs record each loaded agent file, agent name, and enforced tool set. Per request, logs record Team ID, matched player ID, the parent definition, specialist definitions used by backend orchestration, and the deterministic action. User message text, instructions, and raw tool payloads are not logged.
+
+The backend applies `FplCoachAgent` delegation instructions and invokes factual specialist paths:
 
 - `InjuryAgent` calls only `get_player_availability(playerId)`, which returns structured official FPL bootstrap availability for that owned player.
 - `FixtureAgent` calls only `get_upcoming_fixtures(playerId, gameweeks)`, which returns the owned player's next 1 to 5 distinct gameweeks from official element-summary fixture data.
 - `TransferAgent` calls only `get_transfer_candidates(playerId, limit)`, which returns a small ranked set of replacements for an owned player from the actual connected squad.
 
-The parent can delegate but cannot call fact tools directly. Each specialist has an exclusive tool allowlist, unknown player IDs fail closed, and no shell, file, web, or MCP tools are exposed. Markdown agent instructions explicitly prohibit inventing injuries, fixtures, prices, budgets, or projected scores.
+Each specialist has an exclusive tool allowlist and unknown player IDs fail closed. Markdown agent instructions prohibit inventing injuries, fixtures, prices, budgets, or projected scores, while C# enforcement provides the security boundary.
 
 Specialists are invoked conditionally. For a claim such as `Saka is injured`, the backend records `InjuryAgent` first and verifies official availability. If the result indicates injury, doubt, suspension, unavailability, or a sub-75% chance of playing, `FixtureAgent` and `TransferAgent` start independently and run concurrently. Their structured outputs then pass into `PlayerRecommendationService`. If the player is available, the workflow stops after `InjuryAgent`. A fixture-only question invokes only `FixtureAgent`; the backend does not fan out to every specialist by default.
 
@@ -218,7 +222,7 @@ Specialists are invoked conditionally. For a claim such as `Saka is injured`, th
 
 `FixtureAgent` returns each fixture's opponent, home or away status, and official 1-5 FPL difficulty. Double gameweeks retain every fixture in the requested distinct-gameweek window. C# calculates the average difficulty and an aggregate score as `6 - average FPL difficulty`, where a higher score means an easier schedule. Average difficulty up to 2.5 is `Favorable`, up to 3.5 is `Mixed`, and anything higher is `Difficult`. The agent explains that schedule assessment but is explicitly prohibited from making transfer decisions.
 
-`TransferAgent` resolves the outgoing player by numeric ID from the typed 15-player context. Its backend tool retrieves the current squad, bank, actual selling value, market prices and positions, and deterministic 1/3/5-gameweek projections. Before candidates are returned, C# rejects owned, unavailable, low-minutes, wrong-position, over-budget, and fourth-player-from-one-club options. The response contains up to five ranked candidates with price difference, five-gameweek projected points for both players, projected-point difference, confidence, and a short engine-supplied reason. Copilot cannot add candidates or relax these rules.
+`TransferAgent` resolves the outgoing player by numeric ID from the typed 15-player context. Its backend tool retrieves the current squad, bank, actual selling value, market prices and positions, and deterministic 1/3/5-gameweek projections. Before candidates are returned, C# rejects owned, unavailable, low-minutes, wrong-position, over-budget, and fourth-player-from-one-club options. The response contains up to five ranked candidates with price difference, five-gameweek projected points for both players, projected-point difference, confidence, and a short engine-supplied reason.
 
 `PlayerRecommendationService` combines the structured Injury Agent availability result, Fixture Agent schedule result, and Transfer Agent legal candidates for the same owned player. `PlayerRecommendationPolicy` then chooses `HOLD`, `BENCH`, or `TRANSFER` entirely in C#:
 
@@ -228,13 +232,13 @@ Specialists are invoked conditionally. For a claim such as `Saka is injured`, th
 
 Projected impact is the selected replacement's deterministic five-gameweek point gain for `TRANSFER` and zero for `HOLD` or `BENCH`. Confidence blends verified availability confidence (40%), fixture-data coverage (25%), and transfer-candidate confidence (35%). The structured result includes the action, impact, confidence, reason, selected replacement when applicable, and all three supporting result payloads.
 
-The backend passes an invocation trace, the structured specialist outputs, and the C# recommendation to `FplCoachAgent` as `VERIFIED_SPECIALIST_RESULTS` before final generation. `FplCoachAgent` must not reinvoke completed specialists and must preserve the C# action exactly; it only explains the result conversationally. The backend also prefixes action-oriented chat responses with the deterministic action and reason, so model prose cannot override the recommendation.
+The backend records an invocation trace, combines structured specialist outputs in C#, and returns the deterministic action, confidence, projected impact, and supporting reason directly. There is no model-generated prose that can override the recommendation.
 
 The strongly typed response includes the conversational `message`, recommendation type (`General`, `Availability`, `Fixture`, `Recommendation`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability, fixture, transfer, or deterministic recommendation analysis when applicable. When C# produces a recommendation, `structuredRecommendation` provides a stable client-facing summary with the detected player, action, confidence, injury status, upcoming fixture summary, optional suggested replacement, projected impact, horizon, and reason:
 
 ```json
 {
-	"message": "Copilot-generated FPL guidance based on the supplied squad context...",
+	"message": "Deterministic recommendation: TRANSFER. Transfer to Palmer...",
 	"teamId": 7558250,
 	"recommendationType": "Availability",
 	"confidence": 78,
@@ -272,9 +276,7 @@ The chat interface submits new messages to `POST /api/coach/chat/stream`, which 
 
 ASP.NET Core disables proxy buffering and flushes each SSE event immediately. Progress originates at C# orchestration boundaries and never includes prompts, tool payloads, chain-of-thought, or raw agent reasoning. React displays received statuses while the request is active, then removes the progress panel and replaces it with the final conversational answer and recommendation card when `complete` arrives.
 
-The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request`, missing FPL teams return `404 Not Found`, and Copilot SDK failures return sanitized `502 Bad Gateway` Problem Details. `ICoachService` owns FPL context assembly, `IFplCoachFactService` owns read-only fact retrieval, and `ICopilotChatClient` isolates all SDK sessions and custom-agent configuration.
-
-The SDK can use its bundled runtime with `COPILOT_GITHUB_TOKEN`, or connect to a private external headless runtime using `COPILOT_RUNTIME_URL` and an optional connection token. The GitHub account or organization must permit Copilot SDK/CLI features. A valid token alone is insufficient when enterprise or organization policy disables SDK access.
+The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request` and missing FPL teams return `404 Not Found`. `ICoachService` owns squad context and orchestration, while `IFplCoachFactService` owns read-only specialist facts.
 
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
@@ -453,11 +455,6 @@ Example values live in `.env.example`, `frontend/.env.example`, and `backend/.en
 | `Security__MaxRequestBodyKilobytes` | No | Kestrel request-body limit, default `64` |
 | `Security__UseHttpsRedirection` | No | Enable only when ASP.NET owns HTTPS |
 | `VITE_API_BASE_URL` | Development only | Cross-origin backend base URL for standalone Vite |
-| `COPILOT_MODEL` | No | Copilot model selection, default `auto` |
-| `COPILOT_GITHUB_TOKEN` | Bundled runtime | Backend-only GitHub token for Copilot SDK authentication |
-| `COPILOT_RUNTIME_URL` | External runtime | Private Copilot CLI headless server URL |
-| `COPILOT_RUNTIME_CONNECTION_TOKEN` | No | Shared secret for an external runtime connection |
-| `COPILOT_REQUEST_TIMEOUT_SECONDS` | No | Copilot request timeout, default `120` |
 
 ## Troubleshooting
 
@@ -465,5 +462,5 @@ Example values live in `.env.example`, `frontend/.env.example`, and `backend/.en
 - `Degraded` from `/health`: Redis is unavailable. Requests continue through the memory fallback; inspect `docker compose logs redis backend`.
 - Browser CORS failure: ensure `APP_ORIGIN` or `Cors__AllowedOrigins__0` exactly matches scheme, host, and port. Paths and wildcard origins are rejected.
 - Migration failure: run `dotnet tool restore`, generate an idempotent script, and verify PostgreSQL credentials before restarting.
-- AI Coach returns `502`: verify backend-only token/runtime configuration and confirm the GitHub organization or enterprise policy enables Copilot SDK/CLI access. Provider details remain in backend logs only.
+- AI Coach error: verify the connected Team ID returns a valid 15-player squad and inspect backend logs for the failed deterministic stage.
 - Stale development dependencies: run `docker compose down --volumes` only when discarding local PostgreSQL/Redis data is acceptable, then rebuild.

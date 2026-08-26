@@ -5,65 +5,58 @@ using Backend.Recommendation.Models;
 using Backend.Recommendation.Transfer;
 using Backend.Recommendation.Transfer.Models;
 using Backend.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Backend.Tests;
 
 public class FplCoachWorkflowTests
 {
     [Fact]
-    public async Task ConfirmedInjuryProducesDeterministicTransferAndRejectsContradictoryHoldResponse()
+    public async Task ConfirmedInjuryProducesDeterministicTransfer()
     {
         var result = await RunWorkflowAsync(
             Availability("i", "Injured", 0),
             Fixtures("Mixed", 3),
             Transfers(Candidate(4m)),
-            "You should hold Saka.",
             "Saka is injured");
 
         Assert.Equal(PlayerRecommendationAction.Transfer, result.Response.Recommendation?.Action);
         Assert.Equal(4m, result.Response.Recommendation?.ProjectedImpact);
         Assert.Equal(91.50m, result.Response.Recommendation?.Confidence);
         Assert.StartsWith("Deterministic recommendation: TRANSFER.", result.Response.Message);
-        Assert.DoesNotContain("should hold", result.Response.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(
-            [FplCoachAgents.InjurySpecialistName, FplCoachAgents.FixtureSpecialistName, FplCoachAgents.TransferSpecialistName],
-            result.Copilot.Grounding?.InvokedAgents);
+        Assert.Contains("Confidence: 92%", result.Response.Message);
     }
 
     [Fact]
-    public async Task UnconfirmedInjuryClaimStopsAfterVerificationAndRejectsFalseInjuryResponse()
+    public async Task UnconfirmedInjuryClaimStopsAfterVerification()
     {
         var result = await RunWorkflowAsync(
             Availability("a", "Available", 100),
             Fixtures("Difficult", 5),
             Transfers(Candidate(8m)),
-            "Saka is injured.",
             "Saka is injured");
 
         Assert.Null(result.Response.Recommendation);
         Assert.Equal(
             "Official FPL data does not confirm that Saka is injured. Current status: Available.",
-            result.Response.Message);
-        Assert.Equal([FplCoachAgents.InjurySpecialistName], result.Copilot.Grounding?.InvokedAgents);
+            result.Response.Message[.."Official FPL data does not confirm that Saka is injured. Current status: Available.".Length]);
         Assert.Equal(0, result.Facts.FixtureCalls);
         Assert.Equal(0, result.Facts.TransferCalls);
     }
 
     [Fact]
-    public async Task FavorableFixtureResultCannotBeDescribedAsDifficult()
+    public async Task FavorableFixtureResultUsesBackendExplanation()
     {
         var fixtures = Fixtures("Favorable", 2);
         var result = await RunWorkflowAsync(
             Availability("a", "Available", 100),
             fixtures,
             Transfers(),
-            "Saka has a difficult upcoming schedule.",
             "Show Saka fixtures");
 
         Assert.Equal(fixtures.Explanation, result.Response.Message);
         Assert.Equal("Favorable", result.Response.Fixtures?.ScheduleRating);
         Assert.DoesNotContain("difficult", result.Response.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal([FplCoachAgents.FixtureSpecialistName], result.Copilot.Grounding?.InvokedAgents);
     }
 
     [Fact]
@@ -74,7 +67,6 @@ public class FplCoachWorkflowTests
             Availability("i", "Injured", 0),
             Fixtures("Mixed", 3),
             transferResult,
-            "You should transfer Saka.",
             "Saka is injured");
 
         Assert.Empty(transferResult.Candidates);
@@ -82,7 +74,6 @@ public class FplCoachWorkflowTests
         Assert.Equal(0m, result.Response.Recommendation?.ProjectedImpact);
         Assert.Equal(89.75m, result.Response.Recommendation?.Confidence);
         Assert.StartsWith("Deterministic recommendation: BENCH.", result.Response.Message);
-        Assert.DoesNotContain("should transfer", result.Response.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -93,7 +84,6 @@ public class FplCoachWorkflowTests
             Availability("i", "Injured", 0),
             Fixtures("Mixed", 3),
             transferResult,
-            "My recommendation is to transfer Saka.",
             "Saka is injured");
 
         Assert.Empty(transferResult.Candidates);
@@ -101,27 +91,25 @@ public class FplCoachWorkflowTests
         Assert.Equal(0m, result.Response.Recommendation?.ProjectedImpact);
         Assert.Equal(89.75m, result.Response.Recommendation?.Confidence);
         Assert.StartsWith("Deterministic recommendation: BENCH.", result.Response.Message);
-        Assert.DoesNotContain("recommendation is to transfer", result.Response.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<WorkflowResult> RunWorkflowAsync(
         PlayerAvailabilityResult availability,
         PlayerFixtureWindowResult fixtures,
         PlayerReplacementResult transfers,
-        string modelResponse,
         string message)
     {
         var facts = new ScenarioFactService(availability, fixtures, transfers);
-        var copilot = new ScenarioCopilotClient(modelResponse);
-        var service = new CopilotCoachService(
+        var service = new FplCoachService(
             new ScenarioFplDataService(),
-            copilot,
             facts,
             new PlayerRecommendationService(facts),
-            TimeProvider.System);
+            new TestAgentProvider(),
+            TimeProvider.System,
+            NullLogger<FplCoachService>.Instance);
 
         var response = await service.ReplyAsync(42, message, CancellationToken.None);
-        return new(response, facts, copilot);
+        return new(response, facts);
     }
 
     private static PlayerAvailabilityResult Availability(string status, string description, int chance) => new(
@@ -258,17 +246,6 @@ public class FplCoachWorkflowTests
         }
     }
 
-    private sealed class ScenarioCopilotClient(string response) : ICopilotChatClient
-    {
-        public CoachSpecialistGrounding? Grounding { get; private set; }
-
-        public Task<string> GenerateAsync(string message, FplCoachContext context, CoachSpecialistGrounding grounding, CancellationToken cancellationToken)
-        {
-            Grounding = grounding;
-            return Task.FromResult(response);
-        }
-    }
-
     private sealed class ScenarioFplDataService : IFplDataService
     {
         public Task<BootstrapData> GetBootstrapDataAsync(CancellationToken cancellationToken) => Task.FromResult(new BootstrapData(
@@ -308,6 +285,5 @@ public class FplCoachWorkflowTests
 
     private sealed record WorkflowResult(
         CoachChatResponse Response,
-        ScenarioFactService Facts,
-        ScenarioCopilotClient Copilot);
+        ScenarioFactService Facts);
 }

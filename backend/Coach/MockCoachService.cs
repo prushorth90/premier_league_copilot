@@ -1,16 +1,16 @@
 using Backend.Coach.Models;
 using Backend.Models;
 using Backend.Services;
-using System.Text.RegularExpressions;
 
 namespace Backend.Coach;
 
-public sealed class CopilotCoachService(
+public sealed class FplCoachService(
     IFplDataService fplDataService,
-    ICopilotChatClient copilotChatClient,
     IFplCoachFactService factService,
     IPlayerRecommendationService recommendationService,
-    TimeProvider timeProvider) : ICoachService
+    IFplCoachAgentProvider agentProvider,
+    TimeProvider timeProvider,
+    ILogger<FplCoachService> logger) : ICoachService
 {
     public Task<CoachChatResponse> ReplyAsync(
         int teamId,
@@ -32,6 +32,8 @@ public sealed class CopilotCoachService(
         CancellationToken cancellationToken)
     {
         var normalizedMessage = message.Trim();
+        var agents = agentProvider.GetAgents();
+        var parentAgent = agents.Single(agent => agent.Name == FplCoachAgents.ParentName);
         await ReportAsync(progressSink, "loading-squad", "Loading squad context", cancellationToken);
         var managerTask = fplDataService.GetManagerAsync(teamId, cancellationToken);
         var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
@@ -58,6 +60,10 @@ public sealed class CopilotCoachService(
             manager,
             squad,
             bootstrap);
+        logger.LogInformation(
+            "Starting AI Coach orchestration for TeamId {TeamId} and PlayerId {PlayerId}",
+            teamId,
+            matchedPlayer?.Id);
         PlayerAvailabilityResult? availability = null;
         PlayerRecommendationResult? recommendation = null;
         if (matchedPlayer is not null && recommendationType == CoachRecommendationType.Availability)
@@ -106,13 +112,13 @@ public sealed class CopilotCoachService(
             ?? transfers?.Candidates.FirstOrDefault()?.Confidence
             ?? GetConfidence(recommendationType, matchedPlayer);
         var grounding = CreateGrounding(availability, fixtures, transfers, recommendation);
+        logger.LogInformation(
+            "AI Coach parent {ParentAgent} used specialist definitions {InvokedAgents}; deterministic action {RecommendationAction}",
+            parentAgent.Name,
+            grounding.InvokedAgents.Count == 0 ? "none" : string.Join(",", grounding.InvokedAgents),
+            recommendation?.Action.ToString() ?? "none");
         await ReportAsync(progressSink, "preparing-answer", "Preparing recommendation", cancellationToken);
-        var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, grounding, cancellationToken);
-        reply = EnsureFixtureClaimIsGrounded(reply, fixtures);
-        reply = EnsureRecommendationIsGrounded(reply, recommendation);
-        reply = EnsureAvailabilityClaimIsGrounded(
-            reply,
-            recommendationType == CoachRecommendationType.Availability ? availability : null);
+        var reply = ComposeReply(recommendationType, availability, fixtures, recommendation);
         var structuredRecommendation = recommendation is not null && playerInfo is not null
             ? MapStructuredRecommendation(playerInfo, recommendation)
             : null;
@@ -130,6 +136,41 @@ public sealed class CopilotCoachService(
             transfers,
             recommendation,
             structuredRecommendation);
+    }
+
+    private static string ComposeReply(
+        CoachRecommendationType recommendationType,
+        PlayerAvailabilityResult? availability,
+        PlayerFixtureWindowResult? fixtures,
+        PlayerRecommendationResult? recommendation)
+    {
+        if (recommendation is not null)
+        {
+            var deterministic = $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. "
+                + $"{recommendation.Reason} Confidence: {recommendation.Confidence:0}%. "
+                + $"Projected impact: {recommendation.ProjectedImpact:+0.00;-0.00;0.00} points over {recommendation.ProjectionGameweeks} gameweeks.";
+            return recommendationType == CoachRecommendationType.Availability
+                && availability is not null
+                && availability.Status != "i"
+                    ? $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}. {deterministic}"
+                    : deterministic;
+        }
+
+        if (recommendationType == CoachRecommendationType.Availability && availability is not null)
+        {
+            var chance = availability.ChanceOfPlayingNextRound is int value ? $" Chance of playing: {value}%." : string.Empty;
+            var expectedReturn = availability.ExpectedReturn is not null ? $" Expected return: {availability.ExpectedReturn}." : string.Empty;
+            return availability.Status == "i"
+                ? $"Official FPL data confirms that {availability.Player.PlayerName} is injured.{chance}{expectedReturn} Confidence: {availability.Confidence:0}%."
+                : $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}.{chance}{expectedReturn} Confidence: {availability.Confidence:0}%.";
+        }
+
+        if (fixtures is not null)
+        {
+            return fixtures.Explanation;
+        }
+
+        return "I could not identify a supported injury, fixture, or transfer question for a player in the connected squad.";
     }
 
     private static bool MayMissMatches(PlayerAvailabilityResult availability) =>
@@ -205,72 +246,6 @@ public sealed class CopilotCoachService(
         }
 
         return new CoachSpecialistGrounding(invokedAgents, availability, fixtures, transfers, recommendation);
-    }
-
-    private static string EnsureRecommendationIsGrounded(
-        string reply,
-        PlayerRecommendationResult? recommendation)
-    {
-        if (recommendation is null)
-        {
-            return reply;
-        }
-
-        var grounded = $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. {recommendation.Reason}";
-        return ContradictsAction(reply, recommendation.Action) ? grounded : $"{grounded} {reply}";
-    }
-
-    private static string EnsureAvailabilityClaimIsGrounded(
-        string reply,
-        PlayerAvailabilityResult? availability)
-    {
-        if (availability is null || availability.Status == "i")
-        {
-            return reply;
-        }
-
-        var requiredStatement = $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}.";
-        if (Regex.IsMatch(
-            reply,
-            @"\b(?:is|has been|confirmed as)\s+(?:currently\s+)?injured\b|\bconfirmed injury\b",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-            TimeSpan.FromMilliseconds(100)))
-        {
-            return requiredStatement;
-        }
-
-        return reply.Contains("does not confirm", StringComparison.OrdinalIgnoreCase)
-            ? reply
-            : $"{requiredStatement} {reply}";
-    }
-
-    private static string EnsureFixtureClaimIsGrounded(
-        string reply,
-        PlayerFixtureWindowResult? fixtures)
-    {
-        if (fixtures is null)
-        {
-            return reply;
-        }
-
-        var ratings = Regex.Matches(
-            reply,
-            @"\b(favorable|mixed|difficult)\b",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-            TimeSpan.FromMilliseconds(100));
-        return ratings.Any(match => !match.Groups[1].Value.Equals(fixtures.ScheduleRating, StringComparison.OrdinalIgnoreCase))
-            ? fixtures.Explanation
-            : reply;
-    }
-
-    private static bool ContradictsAction(string reply, PlayerRecommendationAction action)
-    {
-        var actions = Regex.Matches(
-            reply,
-            @"\b(?:should|recommend(?:ation)?(?:\s+is)?|advice\s+is)\s+(?:to\s+)?(hold|bench|transfer)\b",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
-            TimeSpan.FromMilliseconds(100));
-        return actions.Any(match => !match.Groups[1].Value.Equals(action.ToString(), StringComparison.OrdinalIgnoreCase));
     }
 
     private static FplCoachContext CreateContext(

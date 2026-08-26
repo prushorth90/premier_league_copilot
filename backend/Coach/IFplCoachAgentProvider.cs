@@ -1,8 +1,14 @@
-using GitHub.Copilot;
-
 namespace Backend.Coach;
 
 public interface IFplCoachAgentProvider
 {
-    IReadOnlyList<CustomAgentConfig> GetAgents();
+    IReadOnlyList<FplCoachAgentDefinition> GetAgents();
 }
+
+public sealed record FplCoachAgentDefinition(
+    string Name,
+    string DisplayName,
+    string Description,
+    IReadOnlyList<string> Tools,
+    bool Infer,
+    string Instructions);

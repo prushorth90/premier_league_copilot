@@ -60,21 +60,6 @@ public static class ServiceCollectionExtensions
                 $"{SecurityOptions.SectionName}:MaxRequestBodyKilobytes must be between 1 and 1024")
             .ValidateOnStart();
 
-        services.AddOptions<CopilotOptions>()
-            .Bind(configuration.GetSection(CopilotOptions.SectionName))
-            .Validate(options => !string.IsNullOrWhiteSpace(options.Model),
-                $"{CopilotOptions.SectionName}:Model is required")
-            .Validate(options => options.RequestTimeoutSeconds is >= 10 and <= 300,
-                $"{CopilotOptions.SectionName}:RequestTimeoutSeconds must be between 10 and 300")
-            .Validate(options => Path.IsPathFullyQualified(options.BaseDirectory),
-                $"{CopilotOptions.SectionName}:BaseDirectory must be an absolute path")
-            .Validate(options => string.IsNullOrWhiteSpace(options.RuntimeUrl) ||
-                    Uri.TryCreate(options.RuntimeUrl, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https",
-                $"{CopilotOptions.SectionName}:RuntimeUrl must be an absolute HTTP(S) URL")
-            .Validate(options => string.IsNullOrWhiteSpace(options.RuntimeUrl) || string.IsNullOrWhiteSpace(options.GitHubToken),
-                $"{CopilotOptions.SectionName}:GitHubToken cannot be combined with RuntimeUrl")
-            .ValidateOnStart();
-
         return services;
     }
 }
