@@ -21,8 +21,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: backend/Dockerfile.dev
     ports:
       - "5082:8080"
     environment:
@@ -39,9 +39,10 @@ services:
       Copilot__BaseDirectory: /tmp/touchline-copilot
       Copilot__RequestTimeoutSeconds: ${COPILOT_REQUEST_TIMEOUT_SECONDS:-120}
     volumes:
-      - ./backend:/src
-      - backend_bin:/src/bin
-      - backend_obj:/src/obj
+      - ./backend:/src/backend
+      - ./.github/agents:/src/.github/agents:ro
+      - backend_bin:/src/backend/bin
+      - backend_obj:/src/backend/obj
     depends_on:
       postgres:
         condition: service_healthy

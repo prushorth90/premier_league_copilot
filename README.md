@@ -123,10 +123,12 @@ The GitHub Actions CI workflow runs on every push and pull request. It performs:
 
 The automated test suites use deterministic mocked FPL responses and do not require the public FPL API, Redis, or PostgreSQL unless a test explicitly targets an infrastructure integration. Coverage includes:
 
-- Backend xUnit: transport deserialization and domain mapping, cache fallback and concurrent request coalescing, projected-point factors and horizons, captain ranking, all legal formation boundaries, transfer budgets and club limits, two-transfer combinations, recommendation ranking, persistence repositories, controllers, and middleware
+- Backend xUnit: transport deserialization and domain mapping, cache fallback and concurrent request coalescing, projected-point factors and horizons, captain ranking, all legal formation boundaries, transfer budgets and club limits, two-transfer combinations, recommendation ranking, persistence repositories, controllers, middleware, and the three-agent Coach workflow
 - Frontend Vitest: setup validation and mocked team verification, routing, Dashboard data, PlayerCard states, pitch rows and bench order, player/fixture selectors, Transfers and Recommendations cards, recommendation horizon sorting, and loading/error states
 
 CI runs every `*.test.ts`/`*.test.tsx` file through `npm test` and every xUnit test in `PremierLeagueCopilot.sln` through `dotnet test`; no per-file allowlist needs maintenance when new tests are added.
+
+`FplCoachWorkflowTests` covers confirmed and unconfirmed injury claims, favorable fixture interpretation, unaffordable replacements, and the three-player-per-club rule. It uses deterministic C# services and deliberately contradictory fake Copilot replies to verify that final responses cannot override tool results or the computed action. The existing backend CI job discovers these tests automatically and requires no Copilot credentials or live model calls.
 
 Run the same application checks locally with:
 
@@ -193,13 +195,22 @@ The AI Coach uses the official `GitHub.Copilot.SDK` .NET package entirely inside
 
 The backend validates the request, loads the public manager record, current-gameweek squad, and bootstrap player metadata through `IFplDataService`, and rejects an incomplete or duplicate squad. It passes the resulting typed 15-player context and the user's message into a fresh Copilot session with `FplCoachAgent` selected as the parent custom agent.
 
+Agent behavior is defined in repository-level Markdown rather than embedded C# prompts:
+
+- `.github/agents/fpl-coach.agent.md`
+- `.github/agents/injury.agent.md`
+- `.github/agents/fixture.agent.md`
+- `.github/agents/transfer.agent.md`
+
+`MarkdownFplCoachAgentProvider` reads YAML frontmatter and Markdown instructions from those files and maps them to SDK `CustomAgentConfig` instances. The files are linked into .NET build/publish output and copied into both development and production containers. Loading fails closed if a required file, name, description, prompt, or exact tool declaration is missing or changed. C# remains authoritative for registered application tools, exact tool allowlists, FPL API access, validation, projections, budget and club constraints, orchestration, and deterministic recommendations.
+
 `FplCoachAgent` interprets the request and delegates factual investigation to the initial specialist agents:
 
 - `InjuryAgent` calls only `get_player_availability(playerId)`, which returns structured official FPL bootstrap availability for that owned player.
 - `FixtureAgent` calls only `get_upcoming_fixtures(playerId, gameweeks)`, which returns the owned player's next 1 to 5 distinct gameweeks from official element-summary fixture data.
 - `TransferAgent` calls only `get_transfer_candidates(playerId, limit)`, which returns a small ranked set of replacements for an owned player from the actual connected squad.
 
-The parent can delegate but cannot call fact tools directly. Each specialist has an exclusive tool allowlist, unknown player IDs fail closed, and no shell, file, web, or MCP tools are exposed. Agent prompts explicitly prohibit inventing injuries, fixtures, prices, budgets, or projected scores.
+The parent can delegate but cannot call fact tools directly. Each specialist has an exclusive tool allowlist, unknown player IDs fail closed, and no shell, file, web, or MCP tools are exposed. Markdown agent instructions explicitly prohibit inventing injuries, fixtures, prices, budgets, or projected scores.
 
 Specialists are invoked conditionally. For a claim such as `Saka is injured`, the backend records `InjuryAgent` first and verifies official availability. If the result indicates injury, doubt, suspension, unavailability, or a sub-75% chance of playing, `FixtureAgent` and `TransferAgent` start independently and run concurrently. Their structured outputs then pass into `PlayerRecommendationService`. If the player is available, the workflow stops after `InjuryAgent`. A fixture-only question invokes only `FixtureAgent`; the backend does not fan out to every specialist by default.
 

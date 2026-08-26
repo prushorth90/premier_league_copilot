@@ -12,12 +12,13 @@ public class FplCoachAgentTests
     [Fact]
     public void AgentDefinitionsUseParentAndIsolatedSpecialistTools()
     {
-        var agents = FplCoachAgents.Create();
+        var agents = CreateAgentProvider().GetAgents();
 
         var parent = Assert.Single(agents, agent => agent.Name == "FplCoachAgent");
         Assert.Equal(["task"], parent.Tools);
         Assert.False(parent.Infer);
         Assert.Contains("Never invent injuries", parent.Prompt);
+        Assert.Contains("You are **FplCoachAgent**", parent.Prompt);
 
         var injury = Assert.Single(agents, agent => agent.Name == FplCoachAgents.InjurySpecialistName);
         Assert.Equal("InjuryAgent", injury.Name);
@@ -42,7 +43,7 @@ public class FplCoachAgentTests
     public void SessionFactorySelectsParentAndRegistersFactTools()
     {
         var factService = new FplCoachFactService(new StubFplDataService(), new StubTransferService());
-        var factory = new FplCoachSessionFactory(factService);
+        var factory = new FplCoachSessionFactory(factService, CreateAgentProvider());
 
         var config = factory.Create(CreateContext(), "auto", CancellationToken.None);
 
@@ -55,6 +56,39 @@ public class FplCoachAgentTests
         Assert.Contains("builtin:task", config.AvailableTools!);
         Assert.Contains($"custom:{FplCoachAgents.AvailabilityTool}", config.AvailableTools!);
         Assert.NotNull(config.OnPermissionRequest);
+    }
+
+    [Fact]
+    public void MarkdownAgentProviderFailsClosedForMissingFileOrBroadenedTools()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"fpl-agents-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            foreach (var path in Directory.GetFiles(AgentDirectory(), "*.agent.md"))
+            {
+                File.Copy(path, Path.Combine(directory, Path.GetFileName(path)));
+            }
+
+            File.Delete(Path.Combine(directory, "injury.agent.md"));
+            Assert.Throws<InvalidOperationException>(() => new MarkdownFplCoachAgentProvider(directory));
+
+            File.Copy(
+                Path.Combine(AgentDirectory(), "injury.agent.md"),
+                Path.Combine(directory, "injury.agent.md"));
+            var transferPath = Path.Combine(directory, "transfer.agent.md");
+            File.WriteAllText(
+                transferPath,
+                File.ReadAllText(transferPath).Replace(
+                    "tools: [get_transfer_candidates]",
+                    "tools: [get_transfer_candidates, execute]",
+                    StringComparison.Ordinal));
+            Assert.Throws<InvalidOperationException>(() => new MarkdownFplCoachAgentProvider(directory));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]
@@ -184,6 +218,25 @@ public class FplCoachAgentTests
                 false,
                 false))
             .ToArray());
+
+    private static MarkdownFplCoachAgentProvider CreateAgentProvider() => new(AgentDirectory());
+
+    private static string AgentDirectory()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, ".github", "agents");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Repository .github/agents directory was not found.");
+    }
 
     private sealed class StubFplDataService : IFplDataService
     {

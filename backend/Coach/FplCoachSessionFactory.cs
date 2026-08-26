@@ -5,7 +5,9 @@ using System.ComponentModel;
 
 namespace Backend.Coach;
 
-public sealed class FplCoachSessionFactory(IFplCoachFactService factService) : IFplCoachSessionFactory
+public sealed class FplCoachSessionFactory(
+    IFplCoachFactService factService,
+    IFplCoachAgentProvider agentProvider) : IFplCoachSessionFactory
 {
     public SessionConfig Create(
         FplCoachContext context,
@@ -44,7 +46,7 @@ public sealed class FplCoachSessionFactory(IFplCoachFactService factService) : I
         {
             Model = model,
             Agent = FplCoachAgents.ParentName,
-            CustomAgents = FplCoachAgents.Create().ToList(),
+            CustomAgents = agentProvider.GetAgents().ToList(),
             Tools = [availabilityTool, fixturesTool, transfersTool],
             AvailableTools = new ToolSet()
                 .AddBuiltIn("task")

@@ -1,9 +1,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 
-WORKDIR /src
-COPY backend.csproj ./
+WORKDIR /src/backend
+COPY backend/backend.csproj ./
 RUN dotnet restore
-COPY . .
+COPY backend/ .
+COPY .github/agents/ /src/.github/agents/
 RUN dotnet publish --configuration Release --no-restore --no-self-contained --output /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime

@@ -1,6 +1,7 @@
 using Backend.Coach.Models;
 using Backend.Models;
 using Backend.Services;
+using System.Text.RegularExpressions;
 
 namespace Backend.Coach;
 
@@ -107,6 +108,7 @@ public sealed class CopilotCoachService(
         var grounding = CreateGrounding(availability, fixtures, transfers, recommendation);
         await ReportAsync(progressSink, "preparing-answer", "Preparing recommendation", cancellationToken);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, grounding, cancellationToken);
+        reply = EnsureFixtureClaimIsGrounded(reply, fixtures);
         reply = EnsureRecommendationIsGrounded(reply, recommendation);
         reply = EnsureAvailabilityClaimIsGrounded(
             reply,
@@ -207,10 +209,16 @@ public sealed class CopilotCoachService(
 
     private static string EnsureRecommendationIsGrounded(
         string reply,
-        PlayerRecommendationResult? recommendation) =>
-        recommendation is null
-            ? reply
-            : $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. {recommendation.Reason} {reply}";
+        PlayerRecommendationResult? recommendation)
+    {
+        if (recommendation is null)
+        {
+            return reply;
+        }
+
+        var grounded = $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. {recommendation.Reason}";
+        return ContradictsAction(reply, recommendation.Action) ? grounded : $"{grounded} {reply}";
+    }
 
     private static string EnsureAvailabilityClaimIsGrounded(
         string reply,
@@ -222,9 +230,47 @@ public sealed class CopilotCoachService(
         }
 
         var requiredStatement = $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}.";
+        if (Regex.IsMatch(
+            reply,
+            @"\b(?:is|has been|confirmed as)\s+(?:currently\s+)?injured\b|\bconfirmed injury\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100)))
+        {
+            return requiredStatement;
+        }
+
         return reply.Contains("does not confirm", StringComparison.OrdinalIgnoreCase)
             ? reply
             : $"{requiredStatement} {reply}";
+    }
+
+    private static string EnsureFixtureClaimIsGrounded(
+        string reply,
+        PlayerFixtureWindowResult? fixtures)
+    {
+        if (fixtures is null)
+        {
+            return reply;
+        }
+
+        var ratings = Regex.Matches(
+            reply,
+            @"\b(favorable|mixed|difficult)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        return ratings.Any(match => !match.Groups[1].Value.Equals(fixtures.ScheduleRating, StringComparison.OrdinalIgnoreCase))
+            ? fixtures.Explanation
+            : reply;
+    }
+
+    private static bool ContradictsAction(string reply, PlayerRecommendationAction action)
+    {
+        var actions = Regex.Matches(
+            reply,
+            @"\b(?:should|recommend(?:ation)?(?:\s+is)?|advice\s+is)\s+(?:to\s+)?(hold|bench|transfer)\b",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        return actions.Any(match => !match.Groups[1].Value.Equals(action.ToString(), StringComparison.OrdinalIgnoreCase));
     }
 
     private static FplCoachContext CreateContext(
