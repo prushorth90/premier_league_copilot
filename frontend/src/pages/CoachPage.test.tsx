@@ -35,6 +35,17 @@ describe('CoachPage', () => {
         chanceOfPlayingNextRound: 75,
         photoUrl: '/images/player-placeholder.svg',
       },
+      availability: {
+        player: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID' },
+        status: 'd',
+        statusDescription: 'Doubtful',
+        isAvailable: false,
+        chanceOfPlayingNextRound: 75,
+        expectedReturn: '12 Sep',
+        confidence: 85,
+        evidence: 'Hamstring injury. Expected back 12 Sep.',
+        source: 'Official FPL bootstrap data',
+      },
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -48,6 +59,9 @@ describe('CoachPage', () => {
     expect(screen.getByText('Transfer')).toBeTruthy()
     expect(screen.getByText('68% confidence')).toBeTruthy()
     expect(screen.getByText('Arsenal · MID · 75% chance')).toBeTruthy()
+    expect(screen.getByText('Doubtful')).toBeTruthy()
+    expect(screen.getByText('12 Sep')).toBeTruthy()
+    expect(screen.getByText('85%')).toBeTruthy()
   })
 
   it('shows a pending assistant state while waiting', async () => {
@@ -62,14 +76,14 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
   })
 
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 

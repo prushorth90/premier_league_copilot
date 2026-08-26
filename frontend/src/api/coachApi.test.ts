@@ -21,6 +21,7 @@ describe('sendCoachMessage', () => {
         chanceOfPlayingNextRound: 75,
         photoUrl: '/images/player-placeholder.svg',
       },
+      availability: null,
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200,

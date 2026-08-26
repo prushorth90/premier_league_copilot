@@ -22,20 +22,30 @@ public class CoachTests
         var timestamp = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero);
         var dataService = new StubFplDataService();
         var copilotClient = new RecordingCopilotChatClient();
-        var service = new CopilotCoachService(dataService, copilotClient, new FixedTimeProvider(timestamp));
+        var service = new CopilotCoachService(
+            dataService,
+            copilotClient,
+            new StubCoachFactService(),
+            new FixedTimeProvider(timestamp));
 
         var response = await service.ReplyAsync(42, message, CancellationToken.None);
 
         Assert.Equal(42, response.TeamId);
         Assert.Equal(timestamp, response.RespondedAt);
         Assert.False(response.IsMocked);
-        Assert.Equal("Generated Copilot response", response.Message);
+        Assert.Contains("Generated Copilot response", response.Message);
         Assert.Equal(expectedType, response.RecommendationType);
         Assert.InRange(response.Confidence, 1m, 100m);
         Assert.Equal("Saka", response.Player?.PlayerName);
         Assert.Equal("Arsenal", response.Player?.TeamName);
         Assert.Equal("MID", response.Player?.Position);
         Assert.Equal(8, dataService.RequestedGameweek);
+        if (expectedType == CoachRecommendationType.Availability)
+        {
+            Assert.StartsWith("Official FPL data does not confirm that Saka is injured.", response.Message);
+            Assert.Equal("Doubtful", response.Availability?.StatusDescription);
+            Assert.Equal(85m, response.Availability?.Confidence);
+        }
         Assert.Equal(message, copilotClient.Message);
         Assert.Equal(15, copilotClient.Context?.Squad.Count);
         var contextPlayer = Assert.Single(copilotClient.Context!.Squad, player => player.PlayerName == "Saka");
@@ -49,6 +59,7 @@ public class CoachTests
         var service = new CopilotCoachService(
             new StubFplDataService { TeamIsMissing = true },
             copilotClient,
+            new StubCoachFactService(),
             TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<FplApiException>(() =>
@@ -171,6 +182,26 @@ public class CoachTests
             Context = context;
             return Task.FromResult("Generated Copilot response");
         }
+    }
+
+    private sealed class StubCoachFactService : IFplCoachFactService
+    {
+        public PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId) => new(
+            new CoachAvailabilityPlayer(playerId, "Saka", "Arsenal", "MID"),
+            "d",
+            "Doubtful",
+            false,
+            75,
+            null,
+            85m,
+            "Knock",
+            "Official FPL bootstrap data");
+
+        public Task<string> GetUpcomingFixturesAsync(FplCoachContext context, string playerName, int gameweeks, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<string> GetTransferOptionsAsync(FplCoachContext context, string playerName, int limit, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset timestamp) : TimeProvider

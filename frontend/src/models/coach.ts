@@ -11,6 +11,7 @@ export interface CoachChatResponse {
   recommendationType: CoachRecommendationType
   confidence: number
   player: CoachPlayerInfo | null
+  availability: PlayerAvailabilityResult | null
 }
 
 export type CoachRecommendationType = 'General' | 'Availability' | 'Transfer' | 'Replacement'
@@ -25,6 +26,23 @@ export interface CoachPlayerInfo {
   photoUrl: string
 }
 
+export interface PlayerAvailabilityResult {
+  player: {
+    playerId: number
+    playerName: string
+    teamName: string
+    position: string
+  }
+  status: string
+  statusDescription: string
+  isAvailable: boolean
+  chanceOfPlayingNextRound: number | null
+  expectedReturn: string | null
+  confidence: number
+  evidence: string
+  source: string
+}
+
 export interface CoachChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -34,4 +52,5 @@ export interface CoachChatMessage {
   recommendationType?: CoachRecommendationType
   confidence?: number
   player?: CoachPlayerInfo | null
+  availability?: PlayerAvailabilityResult | null
 }

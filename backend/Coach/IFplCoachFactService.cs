@@ -4,7 +4,7 @@ namespace Backend.Coach;
 
 public interface IFplCoachFactService
 {
-    string GetPlayerAvailability(FplCoachContext context, string playerName);
+    PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId);
 
     Task<string> GetUpcomingFixturesAsync(
         FplCoachContext context,

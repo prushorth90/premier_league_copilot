@@ -2,6 +2,7 @@ using System.Text.Json;
 using Backend.Coach.Models;
 using Backend.Recommendation.Transfer;
 using Backend.Services;
+using System.Text.RegularExpressions;
 
 namespace Backend.Coach;
 
@@ -11,21 +12,21 @@ public sealed class FplCoachFactService(
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    public string GetPlayerAvailability(FplCoachContext context, string playerName)
+    public PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId)
     {
-        var player = FindOwnedPlayer(context, playerName);
-        return player is null
-            ? NotFound(playerName)
-            : Serialize(new
-            {
-                player.PlayerId,
-                player.PlayerName,
-                player.TeamName,
-                player.Position,
-                player.Status,
-                player.ChanceOfPlayingNextRound,
-                source = "Official FPL bootstrap data"
-            });
+        var player = context.Squad.SingleOrDefault(item => item.PlayerId == playerId)
+            ?? throw new KeyNotFoundException($"Player {playerId} was not found in the connected 15-player squad.");
+        var (description, isAvailable, confidence) = DescribeStatus(player);
+        return new PlayerAvailabilityResult(
+            new CoachAvailabilityPlayer(player.PlayerId, player.PlayerName, player.TeamName, player.Position),
+            player.Status,
+            description,
+            isAvailable,
+            player.ChanceOfPlayingNextRound,
+            ExtractExpectedReturn(player.News),
+            confidence,
+            string.IsNullOrWhiteSpace(player.News) ? "No current FPL news note." : player.News,
+            "Official FPL bootstrap data");
     }
 
     public async Task<string> GetUpcomingFixturesAsync(
@@ -137,4 +138,26 @@ public sealed class FplCoachFactService(
     });
 
     private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, SerializerOptions);
+
+    private static (string Description, bool IsAvailable, decimal Confidence) DescribeStatus(FplCoachSquadPlayer player) =>
+        player.Status switch
+        {
+            "a" => ("Available", true, 95m),
+            "d" => ("Doubtful", false, player.ChanceOfPlayingNextRound is null ? 70m : 85m),
+            "i" => ("Injured", false, 95m),
+            "s" => ("Suspended", false, 95m),
+            "u" => ("Unavailable", false, 95m),
+            "n" => ("Not in squad", false, 90m),
+            _ => ("Unknown", false, 40m)
+        };
+
+    private static string? ExtractExpectedReturn(string news)
+    {
+        var match = Regex.Match(
+            news,
+            @"Expected back\s+([^.;]+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        return match.Success ? match.Groups[1].Value.Trim() : null;
+    }
 }

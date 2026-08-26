@@ -50,6 +50,7 @@ export function CoachPage() {
         recommendationType: response.recommendationType,
         confidence: response.confidence,
         player: response.player,
+        availability: response.availability,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -144,10 +145,22 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
             <div className="min-w-0"><p className="truncate text-xs font-bold">{message.player.playerName}</p><p className="mt-0.5 text-[10px] text-black/45">{message.player.teamName} · {message.player.position}{message.player.chanceOfPlayingNextRound !== null ? ` · ${message.player.chanceOfPlayingNextRound}% chance` : ''}</p></div>
           </div>
         )}
+        {message.availability && (
+          <dl className="mt-3 grid grid-cols-2 gap-px bg-black/8 text-[10px] sm:grid-cols-4">
+            <AvailabilityMetric label="Status" value={message.availability.statusDescription} />
+            <AvailabilityMetric label="Chance" value={message.availability.chanceOfPlayingNextRound === null ? 'Not supplied' : `${message.availability.chanceOfPlayingNextRound}%`} />
+            <AvailabilityMetric label="Expected return" value={message.availability.expectedReturn ?? 'Not known'} />
+            <AvailabilityMetric label="Confidence" value={`${message.availability.confidence.toFixed(0)}%`} />
+          </dl>
+        )}
         {(message.isMocked || message.recommendationType) && <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold uppercase text-[#287c50]">{message.isMocked && <span>Mocked response</span>}{message.recommendationType && <span>{message.recommendationType}</span>}{message.confidence !== undefined && <span>{message.confidence.toFixed(0)}% confidence</span>}</div>}
       </div>
     </div>
   )
+}
+
+function AvailabilityMetric({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0 bg-[#f4f4ef] px-2 py-2"><dt className="font-bold uppercase text-black/35">{label}</dt><dd className="mt-1 break-words font-semibold text-[#151a17]">{value}</dd></div>
 }
 
 function Avatar({ role }: { role: CoachChatMessage['role'] }) {

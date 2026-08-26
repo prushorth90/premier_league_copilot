@@ -20,8 +20,10 @@ public class FplCoachAgentTests
         Assert.Contains("Never invent injuries", parent.Prompt);
 
         var injury = Assert.Single(agents, agent => agent.Name == FplCoachAgents.InjurySpecialistName);
+        Assert.Equal("InjuryAgent", injury.Name);
         Assert.Equal([FplCoachAgents.AvailabilityTool], injury.Tools);
         Assert.True(injury.Infer);
+        Assert.Contains("Official FPL data does not confirm", injury.Prompt);
         var fixture = Assert.Single(agents, agent => agent.Name == FplCoachAgents.FixtureSpecialistName);
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
@@ -53,14 +55,22 @@ public class FplCoachAgentTests
         var service = new FplCoachFactService(new StubFplDataService(), new StubTransferService());
         var context = CreateContext();
 
-        var owned = service.GetPlayerAvailability(context, "Saka");
-        var missing = service.GetPlayerAvailability(context, "Haaland");
-        var blank = service.GetPlayerAvailability(context, "  ");
+        var owned = service.GetPlayerAvailability(context, 10);
 
-        Assert.Contains("Official FPL bootstrap data", owned);
-        Assert.Contains("\"status\":\"d\"", owned);
-        Assert.Contains("was not found in the connected 15-player squad", missing);
-        Assert.Contains("was not found in the connected 15-player squad", blank);
+        Assert.Equal("Saka", owned.Player.PlayerName);
+        Assert.Equal("d", owned.Status);
+        Assert.Equal("Doubtful", owned.StatusDescription);
+        Assert.False(owned.IsAvailable);
+        Assert.Equal(75, owned.ChanceOfPlayingNextRound);
+        Assert.Equal("12 Sep", owned.ExpectedReturn);
+        Assert.Equal(85m, owned.Confidence);
+        Assert.Equal("Official FPL bootstrap data", owned.Source);
+        var available = service.GetPlayerAvailability(context, 102);
+        Assert.Equal("Available", available.StatusDescription);
+        Assert.True(available.IsAvailable);
+        Assert.Null(available.ExpectedReturn);
+        Assert.Equal(95m, available.Confidence);
+        Assert.Throws<KeyNotFoundException>(() => service.GetPlayerAvailability(context, 999));
     }
 
     [Fact]
@@ -90,12 +100,13 @@ public class FplCoachAgentTests
         100m,
         Enumerable.Range(1, 15)
             .Select(id => new FplCoachSquadPlayer(
-                id == 1 ? 10 : id,
+                id == 1 ? 10 : id + 100,
                 id == 1 ? "Saka" : $"Player {id}",
                 "Arsenal",
                 id == 1 ? "MID" : "DEF",
                 5m,
                 id == 1 ? "d" : "a",
+                id == 1 ? "Hamstring injury. Expected back 12 Sep." : string.Empty,
                 id == 1 ? 75 : null,
                 id <= 11,
                 false,

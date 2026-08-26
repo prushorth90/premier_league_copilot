@@ -7,6 +7,7 @@ namespace Backend.Coach;
 public sealed class CopilotCoachService(
     IFplDataService fplDataService,
     ICopilotChatClient copilotChatClient,
+    IFplCoachFactService factService,
     TimeProvider timeProvider) : ICoachService
 {
     public async Task<CoachChatResponse> ReplyAsync(
@@ -32,7 +33,6 @@ public sealed class CopilotCoachService(
             .OrderByDescending(player => player.DisplayName.Length)
             .FirstOrDefault(player => IsPlayerMentioned(normalizedMessage, player));
         var recommendationType = GetRecommendationType(normalizedMessage);
-        var confidence = GetConfidence(recommendationType, matchedPlayer);
         var playerInfo = matchedPlayer is null
             ? null
             : MapPlayer(matchedPlayer, bootstrap);
@@ -41,7 +41,12 @@ public sealed class CopilotCoachService(
             manager,
             squad,
             bootstrap);
+        var availability = recommendationType == CoachRecommendationType.Availability && matchedPlayer is not null
+            ? factService.GetPlayerAvailability(context, matchedPlayer.Id)
+            : null;
+        var confidence = availability?.Confidence ?? GetConfidence(recommendationType, matchedPlayer);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, cancellationToken);
+        reply = EnsureAvailabilityClaimIsGrounded(reply, availability);
 
         return new CoachChatResponse(
             reply,
@@ -50,7 +55,23 @@ public sealed class CopilotCoachService(
             false,
             recommendationType,
             confidence,
-            playerInfo);
+            playerInfo,
+            availability);
+    }
+
+    private static string EnsureAvailabilityClaimIsGrounded(
+        string reply,
+        PlayerAvailabilityResult? availability)
+    {
+        if (availability is null || availability.Status == "i")
+        {
+            return reply;
+        }
+
+        var requiredStatement = $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}.";
+        return reply.Contains("does not confirm", StringComparison.OrdinalIgnoreCase)
+            ? reply
+            : $"{requiredStatement} {reply}";
     }
 
     private static FplCoachContext CreateContext(
@@ -78,6 +99,7 @@ public sealed class CopilotCoachService(
                     squadPlayer is null ? "Unknown" : positions.GetValueOrDefault(squadPlayer.PositionId)?.ShortName ?? "Unknown",
                     (squadPlayer?.Price ?? 0) / 10m,
                     squadPlayer?.Status ?? "unknown",
+                    squadPlayer?.News ?? string.Empty,
                     squadPlayer?.ChanceOfPlayingNextRound,
                     pick.Position <= 11,
                     pick.IsCaptain,

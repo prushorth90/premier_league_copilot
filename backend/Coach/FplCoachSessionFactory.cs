@@ -13,12 +13,12 @@ public sealed class FplCoachSessionFactory(IFplCoachFactService factService) : I
         CancellationToken cancellationToken)
     {
         var availabilityTool = CopilotTool.DefineTool(
-            ([Description("Exact or partial player name from the connected squad")] string playerName) =>
-                factService.GetPlayerAvailability(context, playerName),
+            ([Description("Exact player ID from CURRENT_FPL_CONTEXT")] int playerId) =>
+                factService.GetPlayerAvailability(context, playerId),
             factoryOptions: new AIFunctionFactoryOptions
             {
                 Name = FplCoachAgents.AvailabilityTool,
-                Description = "Return official FPL availability facts for one owned player."
+                Description = "GetPlayerAvailability(playerId): return structured official FPL availability facts for one owned player."
             });
         var fixturesTool = CopilotTool.DefineTool(
             async (

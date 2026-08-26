@@ -15,7 +15,25 @@ public sealed record FplCoachSquadPlayer(
     string Position,
     decimal Price,
     string Status,
+    string News,
     int? ChanceOfPlayingNextRound,
     bool IsStarter,
     bool IsCaptain,
     bool IsViceCaptain);
+
+public sealed record PlayerAvailabilityResult(
+    CoachAvailabilityPlayer Player,
+    string Status,
+    string StatusDescription,
+    bool IsAvailable,
+    int? ChanceOfPlayingNextRound,
+    string? ExpectedReturn,
+    decimal Confidence,
+    string Evidence,
+    string Source);
+
+public sealed record CoachAvailabilityPlayer(
+    int PlayerId,
+    string PlayerName,
+    string TeamName,
+    string Position);

@@ -11,7 +11,8 @@ public sealed record CoachChatResponse(
     bool IsMocked,
     CoachRecommendationType RecommendationType,
     decimal Confidence,
-    CoachPlayerInfo? Player);
+    CoachPlayerInfo? Player,
+    PlayerAvailabilityResult? Availability = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter<CoachRecommendationType>))]
 public enum CoachRecommendationType
