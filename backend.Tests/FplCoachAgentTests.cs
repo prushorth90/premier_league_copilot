@@ -33,24 +33,29 @@ public class FplCoachAgentTests
         Assert.Equal([FplCoachAgents.TransfersTool], transfer.Tools);
         Assert.Contains("maximum-three-per-club", transfer.Prompt);
         Assert.Contains("projected-point difference", transfer.Prompt);
+        var recommendation = Assert.Single(agents, agent => agent.Name == FplCoachAgents.RecommendationSpecialistName);
+        Assert.Equal("RecommendationAgent", recommendation.Name);
+        Assert.Equal([FplCoachAgents.RecommendationTool], recommendation.Tools);
+        Assert.Contains("Preserve the returned HOLD, BENCH, or TRANSFER action exactly", recommendation.Prompt);
     }
 
     [Fact]
     public void SessionFactorySelectsParentAndRegistersFactTools()
     {
         var factService = new FplCoachFactService(new StubFplDataService(), new StubTransferService());
-        var factory = new FplCoachSessionFactory(factService);
+        var factory = new FplCoachSessionFactory(factService, new PlayerRecommendationService(factService));
 
         var config = factory.Create(CreateContext(), "auto", CancellationToken.None);
 
         Assert.Equal(FplCoachAgents.ParentName, config.Agent);
         Assert.Equal("auto", config.Model);
-        Assert.Equal(4, config.CustomAgents?.Count);
+        Assert.Equal(5, config.CustomAgents?.Count);
         Assert.Equal(
-            [FplCoachAgents.AvailabilityTool, FplCoachAgents.TransfersTool, FplCoachAgents.FixturesTool],
+            [FplCoachAgents.AvailabilityTool, FplCoachAgents.RecommendationTool, FplCoachAgents.TransfersTool, FplCoachAgents.FixturesTool],
             config.Tools?.Select(tool => tool.Name).Order());
         Assert.Contains("builtin:task", config.AvailableTools!);
         Assert.Contains($"custom:{FplCoachAgents.AvailabilityTool}", config.AvailableTools!);
+        Assert.Contains($"custom:{FplCoachAgents.RecommendationTool}", config.AvailableTools!);
         Assert.NotNull(config.OnPermissionRequest);
     }
 

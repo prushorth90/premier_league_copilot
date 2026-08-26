@@ -207,7 +207,17 @@ The parent can delegate but cannot call fact tools directly. Each specialist has
 
 `TransferAgent` resolves the outgoing player by numeric ID from the typed 15-player context. Its backend tool retrieves the current squad, bank, actual selling value, market prices and positions, and deterministic 1/3/5-gameweek projections. Before candidates are returned, C# rejects owned, unavailable, low-minutes, wrong-position, over-budget, and fourth-player-from-one-club options. The response contains up to five ranked candidates with price difference, five-gameweek projected points for both players, projected-point difference, confidence, and a short engine-supplied reason. Copilot cannot add candidates or relax these rules.
 
-The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Fixture`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability or fixture analysis when applicable:
+`PlayerRecommendationService` combines the structured Injury Agent availability result, Fixture Agent schedule result, and Transfer Agent legal candidates for the same owned player. `PlayerRecommendationPolicy` then chooses `HOLD`, `BENCH`, or `TRANSFER` entirely in C#:
+
+- `TRANSFER` when the best legal candidate gains at least 3 projected points and the player is unavailable, doubtful, or has difficult fixtures; an available player with favorable fixtures requires at least a 5-point gain.
+- `BENCH` when verified availability or fixture risk is present but no legal candidate clears the transfer threshold.
+- `HOLD` when the player is available, fixtures are not difficult, and no candidate provides a sufficient projected gain.
+
+Projected impact is the selected replacement's deterministic five-gameweek point gain for `TRANSFER` and zero for `HOLD` or `BENCH`. Confidence blends verified availability confidence (40%), fixture-data coverage (25%), and transfer-candidate confidence (35%). The structured result includes the action, impact, confidence, reason, selected replacement when applicable, and all three supporting result payloads.
+
+`RecommendationAgent` can call only `get_player_recommendation(playerId, gameweeks, candidateLimit)`. It and `FplCoachAgent` must preserve the C# action exactly and may only explain it. The backend also prefixes action-oriented chat responses with the deterministic action and reason, so model prose cannot override the recommendation.
+
+The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Fixture`, `Recommendation`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability, fixture, transfer, or deterministic recommendation analysis when applicable:
 
 ```json
 {

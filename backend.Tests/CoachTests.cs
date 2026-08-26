@@ -26,6 +26,7 @@ public class CoachTests
             dataService,
             copilotClient,
             new StubCoachFactService(),
+            new StubPlayerRecommendationService(),
             new FixedTimeProvider(timestamp));
 
         var response = await service.ReplyAsync(42, message, CancellationToken.None);
@@ -49,6 +50,10 @@ public class CoachTests
         if (expectedType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement)
         {
             Assert.Equal(80m, response.Confidence);
+            Assert.Equal(PlayerRecommendationAction.Transfer, response.Recommendation?.Action);
+            Assert.Equal(8m, response.Recommendation?.ProjectedImpact);
+            Assert.StartsWith("Deterministic recommendation: TRANSFER.", response.Message);
+            Assert.DoesNotContain("does not confirm that Saka is injured", response.Message);
             Assert.Equal(10.5m, response.Transfers?.MaximumPurchasePrice);
             var candidate = Assert.Single(response.Transfers!.Candidates);
             Assert.Equal("Palmer", candidate.Player.PlayerName);
@@ -68,6 +73,7 @@ public class CoachTests
             new StubFplDataService { TeamIsMissing = true },
             copilotClient,
             new StubCoachFactService(),
+            new StubPlayerRecommendationService(),
             TimeProvider.System);
 
         var exception = await Assert.ThrowsAsync<FplApiException>(() =>
@@ -224,6 +230,45 @@ public class CoachTests
                     80m,
                     "Adds 8 projected points over five gameweeks.")],
                 "Touchline transfer recommendation engine"));
+    }
+
+    private sealed class StubPlayerRecommendationService : IPlayerRecommendationService
+    {
+        public Task<PlayerRecommendationResult> GetRecommendationAsync(
+            FplCoachContext context,
+            int playerId,
+            int gameweeks,
+            int candidateLimit,
+            CancellationToken cancellationToken)
+        {
+            var availability = new PlayerAvailabilityResult(
+                new CoachAvailabilityPlayer(playerId, "Saka", "Arsenal", "MID"),
+                "d", "Doubtful", false, 75, null, 85m, "Knock", "Official FPL bootstrap data");
+            var fixtures = new PlayerFixtureWindowResult(
+                new CoachFixturePlayer(playerId, "Saka", "Arsenal", "MID"),
+                gameweeks,
+                [new CoachUpcomingFixture(1, 9, "Gameweek 9", null, "Chelsea", true, "Home", 2)],
+                2m, 4m, "Favorable", "Favorable schedule.", "Official FPL data");
+            var candidate = new CoachReplacementCandidate(
+                1,
+                new CoachTransferPlayer(20, "Palmer", "Chelsea", "MID", 9.5m),
+                -0.5m, 25m, 33m, 8m, 80m,
+                "Adds eight projected points over five gameweeks.");
+            var transfers = new PlayerReplacementResult(
+                new CoachTransferPlayer(playerId, "Saka", "Arsenal", "MID", 10m),
+                0.5m, 10.5m, 5, [candidate], "Touchline transfer recommendation engine");
+            return Task.FromResult(new PlayerRecommendationResult(
+                PlayerRecommendationAction.Transfer,
+                8m,
+                5,
+                80m,
+                "Transfer to Palmer.",
+                candidate,
+                availability,
+                fixtures,
+                transfers,
+                "Deterministic C# recommendation policy"));
+        }
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset timestamp) : TimeProvider

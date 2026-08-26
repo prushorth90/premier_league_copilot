@@ -14,7 +14,8 @@ public sealed record CoachChatResponse(
     CoachPlayerInfo? Player,
     PlayerAvailabilityResult? Availability = null,
     PlayerFixtureWindowResult? Fixtures = null,
-    PlayerReplacementResult? Transfers = null);
+    PlayerReplacementResult? Transfers = null,
+    PlayerRecommendationResult? Recommendation = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter<CoachRecommendationType>))]
 public enum CoachRecommendationType
@@ -22,6 +23,7 @@ public enum CoachRecommendationType
     General,
     Availability,
     Fixture,
+    Recommendation,
     Transfer,
     Replacement
 }

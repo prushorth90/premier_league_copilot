@@ -54,6 +54,7 @@ export function CoachPage() {
         availability: response.availability,
         fixtures: response.fixtures,
         transfers: response.transfers,
+        recommendation: response.recommendation,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -142,6 +143,15 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
       <Avatar role={message.role} />
       <div className={`max-w-[min(34rem,82%)] px-4 py-3 text-sm leading-6 ${isUser ? 'bg-[#151a17] text-white' : 'border border-black/10 bg-white text-[#151a17]'}`}>
         <p>{message.content}</p>
+        {message.recommendation && (
+          <div className="mt-3 border-l-4 border-[#287c50] bg-[#edf7f1] px-3 py-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-xs font-black uppercase text-[#155c39]">{message.recommendation.action}</span>
+              <span className="text-[10px] font-bold text-[#287c50]">{formatSigned(message.recommendation.projectedImpact)} pts / {message.recommendation.projectionGameweeks} GW · {message.recommendation.confidence.toFixed(0)}%</span>
+            </div>
+            <p className="mt-1 text-[10px] leading-4 text-[#214a36]">{message.recommendation.reason}</p>
+          </div>
+        )}
         {message.player && (
           <div className="mt-3 flex items-center gap-3 border-t border-black/8 pt-3">
             <div className="grid h-14 w-11 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={message.player.photoUrl} playerName={message.player.playerName} className="h-full w-auto" /></div>

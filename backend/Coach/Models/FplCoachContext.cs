@@ -88,3 +88,23 @@ public sealed record CoachReplacementCandidate(
     decimal ProjectedPointDifference,
     decimal Confidence,
     string Reason);
+
+public sealed record PlayerRecommendationResult(
+    PlayerRecommendationAction Action,
+    decimal ProjectedImpact,
+    int ProjectionGameweeks,
+    decimal Confidence,
+    string Reason,
+    CoachReplacementCandidate? RecommendedReplacement,
+    PlayerAvailabilityResult Availability,
+    PlayerFixtureWindowResult Fixtures,
+    PlayerReplacementResult Transfers,
+    string Source);
+
+[System.Text.Json.Serialization.JsonConverter(typeof(System.Text.Json.Serialization.JsonStringEnumConverter<PlayerRecommendationAction>))]
+public enum PlayerRecommendationAction
+{
+    Hold,
+    Bench,
+    Transfer
+}

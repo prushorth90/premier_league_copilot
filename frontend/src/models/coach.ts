@@ -14,9 +14,10 @@ export interface CoachChatResponse {
   availability: PlayerAvailabilityResult | null
   fixtures: PlayerFixtureWindowResult | null
   transfers: PlayerReplacementResult | null
+  recommendation: PlayerRecommendationResult | null
 }
 
-export type CoachRecommendationType = 'General' | 'Availability' | 'Fixture' | 'Transfer' | 'Replacement'
+export type CoachRecommendationType = 'General' | 'Availability' | 'Fixture' | 'Recommendation' | 'Transfer' | 'Replacement'
 
 export interface CoachPlayerInfo {
   playerId: number
@@ -100,6 +101,21 @@ export interface CoachReplacementCandidate {
   reason: string
 }
 
+export interface PlayerRecommendationResult {
+  action: PlayerRecommendationAction
+  projectedImpact: number
+  projectionGameweeks: number
+  confidence: number
+  reason: string
+  recommendedReplacement: CoachReplacementCandidate | null
+  availability: PlayerAvailabilityResult
+  fixtures: PlayerFixtureWindowResult
+  transfers: PlayerReplacementResult
+  source: string
+}
+
+export type PlayerRecommendationAction = 'Hold' | 'Bench' | 'Transfer'
+
 export interface CoachChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -112,4 +128,5 @@ export interface CoachChatMessage {
   availability?: PlayerAvailabilityResult | null
   fixtures?: PlayerFixtureWindowResult | null
   transfers?: PlayerReplacementResult | null
+  recommendation?: PlayerRecommendationResult | null
 }

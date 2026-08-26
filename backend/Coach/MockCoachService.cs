@@ -8,6 +8,7 @@ public sealed class CopilotCoachService(
     IFplDataService fplDataService,
     ICopilotChatClient copilotChatClient,
     IFplCoachFactService factService,
+    IPlayerRecommendationService recommendationService,
     TimeProvider timeProvider) : ICoachService
 {
     public async Task<CoachChatResponse> ReplyAsync(
@@ -41,24 +42,34 @@ public sealed class CopilotCoachService(
             manager,
             squad,
             bootstrap);
-        var availability = recommendationType == CoachRecommendationType.Availability && matchedPlayer is not null
-            ? factService.GetPlayerAvailability(context, matchedPlayer.Id)
+        var recommendation = RequiresRecommendation(recommendationType) && matchedPlayer is not null
+            ? await recommendationService.GetRecommendationAsync(
+                context,
+                matchedPlayer.Id,
+                GetDecisionGameweeks(normalizedMessage),
+                3,
+                cancellationToken)
             : null;
-        var fixtures = recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null
+        var availability = recommendation?.Availability ?? (recommendationType == CoachRecommendationType.Availability && matchedPlayer is not null
+            ? factService.GetPlayerAvailability(context, matchedPlayer.Id)
+            : null);
+        var fixtures = recommendation?.Fixtures ?? (recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null
             ? await factService.GetUpcomingFixturesAsync(
                 context,
                 matchedPlayer.Id,
                 GetRequestedGameweeks(normalizedMessage),
                 cancellationToken)
-            : null;
-        var transfers = recommendationType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement && matchedPlayer is not null
-            ? await factService.GetTransferCandidatesAsync(context, matchedPlayer.Id, 3, cancellationToken)
-            : null;
-        var confidence = availability?.Confidence
+            : null);
+        var transfers = recommendation?.Transfers;
+        var confidence = recommendation?.Confidence
+            ?? availability?.Confidence
             ?? transfers?.Candidates.FirstOrDefault()?.Confidence
             ?? GetConfidence(recommendationType, matchedPlayer);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, cancellationToken);
-        reply = EnsureAvailabilityClaimIsGrounded(reply, availability);
+        reply = EnsureAvailabilityClaimIsGrounded(
+            reply,
+            recommendationType == CoachRecommendationType.Availability ? availability : null);
+        reply = EnsureRecommendationIsGrounded(reply, recommendation);
 
         return new CoachChatResponse(
             reply,
@@ -70,8 +81,16 @@ public sealed class CopilotCoachService(
             playerInfo,
             availability,
             fixtures,
-            transfers);
+            transfers,
+            recommendation);
     }
+
+    private static string EnsureRecommendationIsGrounded(
+        string reply,
+        PlayerRecommendationResult? recommendation) =>
+        recommendation is null
+            ? reply
+            : $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. {recommendation.Reason} {reply}";
 
     private static string EnsureAvailabilityClaimIsGrounded(
         string reply,
@@ -137,6 +156,14 @@ public sealed class CopilotCoachService(
             return CoachRecommendationType.Fixture;
         }
 
+        if (message.Contains("bench", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("hold", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("start", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("what should", StringComparison.OrdinalIgnoreCase))
+        {
+            return CoachRecommendationType.Recommendation;
+        }
+
         if (message.Contains("sell", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("transfer out", StringComparison.OrdinalIgnoreCase))
         {
@@ -157,6 +184,7 @@ public sealed class CopilotCoachService(
         {
             CoachRecommendationType.Availability when player is not null => 78m,
             CoachRecommendationType.Fixture when player is not null => 90m,
+            CoachRecommendationType.Recommendation when player is not null => 80m,
             CoachRecommendationType.Transfer when player is not null => 68m,
             CoachRecommendationType.Replacement when player is not null => 64m,
             CoachRecommendationType.General => 35m,
@@ -177,6 +205,17 @@ public sealed class CopilotCoachService(
 
         return 3;
     }
+
+    private static int GetDecisionGameweeks(string message)
+    {
+        var requested = GetRequestedGameweeks(message);
+        return requested == 3 && !message.Contains("3", StringComparison.OrdinalIgnoreCase) ? 5 : requested;
+    }
+
+    private static bool RequiresRecommendation(CoachRecommendationType recommendationType) =>
+        recommendationType is CoachRecommendationType.Recommendation
+            or CoachRecommendationType.Transfer
+            or CoachRecommendationType.Replacement;
 
     private static bool IsPlayerMentioned(string message, Player player) =>
         ContainsName(message, player.DisplayName) ||

@@ -64,6 +64,29 @@ describe('CoachPage', () => {
         }],
         source: 'Touchline transfer recommendation engine',
       },
+      recommendation: {
+        action: 'Transfer',
+        projectedImpact: 8,
+        projectionGameweeks: 5,
+        confidence: 80,
+        reason: 'Transfer to Palmer: the legal replacement projects +8.00 points better over 5 gameweeks.',
+        recommendedReplacement: null,
+        availability: {
+          player: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID' },
+          status: 'd', statusDescription: 'Doubtful', isAvailable: false, chanceOfPlayingNextRound: 75,
+          expectedReturn: '12 Sep', confidence: 85, evidence: 'Knock', source: 'Official FPL bootstrap data',
+        },
+        fixtures: {
+          player: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID' },
+          requestedGameweeks: 5, fixtures: [], averageDifficulty: 2, aggregateScore: 4,
+          scheduleRating: 'Favorable', explanation: 'Favorable schedule.', source: 'Official FPL fixture data',
+        },
+        transfers: {
+          playerOut: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID', price: 10 },
+          bank: 0.5, maximumPurchasePrice: 10.5, projectionGameweeks: 5, candidates: [], source: 'Transfer engine',
+        },
+        source: 'Deterministic C# recommendation policy',
+      },
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -74,7 +97,7 @@ describe('CoachPage', () => {
     expect(await screen.findByText('Compare Saka with the best same-position replacements.')).toBeTruthy()
     expect(coachApiMock.sendCoachMessage).toHaveBeenCalledWith({ teamId: 7558250, message: 'Should I sell Saka?' })
     expect(screen.queryByText('Mocked response')).toBeNull()
-    expect(screen.getByText('Transfer')).toBeTruthy()
+    expect(screen.getAllByText('Transfer')).toHaveLength(2)
     expect(screen.getByText('68% confidence')).toBeTruthy()
     expect(screen.getByText('Arsenal · MID · 75% chance')).toBeTruthy()
     expect(screen.getByText('Doubtful')).toBeTruthy()
@@ -84,6 +107,8 @@ describe('CoachPage', () => {
     expect(screen.getByText('+8.00 pts')).toBeTruthy()
     expect(screen.getByText('-£0.5m', { exact: false })).toBeTruthy()
     expect(screen.getByText('Bank £0.5m · Max £10.5m')).toBeTruthy()
+    expect(screen.getByText('Transfer', { selector: 'span.text-xs' })).toBeTruthy()
+    expect(screen.getByText('+8.00 pts / 5 GW · 80%')).toBeTruthy()
   })
 
   it('shows a pending assistant state while waiting', async () => {
@@ -98,7 +123,7 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null, recommendation: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
   })
 
@@ -126,6 +151,7 @@ describe('CoachPage', () => {
         source: 'Official FPL element-summary and bootstrap data',
       },
       transfers: null,
+      recommendation: null,
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -143,7 +169,7 @@ describe('CoachPage', () => {
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null, recommendation: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 
