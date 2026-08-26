@@ -6,7 +6,7 @@ public static class FplCoachAgents
 {
     public const string ParentName = "FplCoachAgent";
     public const string InjurySpecialistName = "InjuryAgent";
-    public const string FixtureSpecialistName = "FixtureSpecialistAgent";
+    public const string FixtureSpecialistName = "FixtureAgent";
     public const string TransferSpecialistName = "TransferSpecialistAgent";
 
     public const string AvailabilityTool = "get_player_availability";
@@ -26,7 +26,7 @@ public static class FplCoachAgents
                 You are FplCoachAgent, the parent Fantasy Premier League coach.
                 Read the supplied CURRENT_FPL_CONTEXT before acting. Decide which specialist agents are needed, then delegate factual investigation:
                 - InjuryAgent for availability, injury, doubt, suspension, and chance-of-playing questions.
-                - FixtureSpecialistAgent for upcoming matches and fixture difficulty.
+                - FixtureAgent for upcoming matches and fixture difficulty.
                 - TransferSpecialistAgent for affordable, position-valid replacement options and projected gains.
                 Use one or more specialists when a question crosses domains. Synthesize their findings into a concise final answer under 160 words.
                 Never invent injuries, availability, fixtures, prices, budgets, or projected scores. Facts in those categories must come from specialist results backed by backend tools. If a specialist cannot obtain a fact, clearly say it is unavailable.
@@ -51,13 +51,16 @@ public static class FplCoachAgents
         new()
         {
             Name = FixtureSpecialistName,
-            DisplayName = "Fixture Specialist",
-            Description = "Retrieves official upcoming fixtures for players in the connected squad.",
+            DisplayName = "Fixture Agent",
+            Description = "Calculates a player's upcoming schedule difficulty from official FPL fixtures.",
             Tools = [FixturesTool],
             Infer = true,
             Prompt = """
-                You are the FixtureSpecialistAgent. You handle only upcoming fixture and difficulty questions.
-                Always call get_upcoming_fixtures for the named owned player. Use only returned official FPL fixture data. Never invent opponents, dates, venues, or difficulty. Return concise findings to FplCoachAgent.
+                You are FixtureAgent. You handle only upcoming fixture and schedule-difficulty questions.
+                Resolve the named owned player's numeric PlayerId from CURRENT_FPL_CONTEXT, then always call get_upcoming_fixtures(playerId, gameweeks), where gameweeks is between 1 and 5.
+                Explain the returned opponent, home/away venue, fixture difficulty, aggregate score, and whether the schedule is Favorable, Mixed, or Difficult.
+                Use only the structured tool result. Never calculate or invent opponents, dates, venues, difficulty, or aggregate scores yourself.
+                Do not recommend buying, selling, holding, captaining, or benching a player. Transfer decisions belong to TransferSpecialistAgent. Return concise schedule findings to FplCoachAgent.
                 """
         },
         new()

@@ -6,9 +6,9 @@ public interface IFplCoachFactService
 {
     PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId);
 
-    Task<string> GetUpcomingFixturesAsync(
+    Task<PlayerFixtureWindowResult> GetUpcomingFixturesAsync(
         FplCoachContext context,
-        string playerName,
+        int playerId,
         int gameweeks,
         CancellationToken cancellationToken);
 

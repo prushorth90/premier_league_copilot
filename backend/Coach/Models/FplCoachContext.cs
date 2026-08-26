@@ -37,3 +37,29 @@ public sealed record CoachAvailabilityPlayer(
     string PlayerName,
     string TeamName,
     string Position);
+
+public sealed record PlayerFixtureWindowResult(
+    CoachFixturePlayer Player,
+    int RequestedGameweeks,
+    IReadOnlyList<CoachUpcomingFixture> Fixtures,
+    decimal? AverageDifficulty,
+    decimal? AggregateScore,
+    string ScheduleRating,
+    string Explanation,
+    string Source);
+
+public sealed record CoachFixturePlayer(
+    int PlayerId,
+    string PlayerName,
+    string TeamName,
+    string Position);
+
+public sealed record CoachUpcomingFixture(
+    int FixtureId,
+    int Gameweek,
+    string GameweekName,
+    DateTimeOffset? Kickoff,
+    string Opponent,
+    bool IsHome,
+    string Venue,
+    int Difficulty);

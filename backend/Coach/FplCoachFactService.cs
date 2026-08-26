@@ -29,43 +29,60 @@ public sealed class FplCoachFactService(
             "Official FPL bootstrap data");
     }
 
-    public async Task<string> GetUpcomingFixturesAsync(
+    public async Task<PlayerFixtureWindowResult> GetUpcomingFixturesAsync(
         FplCoachContext context,
-        string playerName,
+        int playerId,
         int gameweeks,
         CancellationToken cancellationToken)
     {
-        var player = FindOwnedPlayer(context, playerName);
-        if (player is null)
-        {
-            return NotFound(playerName);
-        }
-
-        var history = await fplDataService.GetPlayerHistoryAsync(player.PlayerId, cancellationToken);
-        var fixtures = history.Fixtures
+        var player = context.Squad.SingleOrDefault(item => item.PlayerId == playerId)
+            ?? throw new KeyNotFoundException($"Player {playerId} was not found in the connected 15-player squad.");
+        var requestedGameweeks = Math.Clamp(gameweeks, 1, 5);
+        var historyTask = fplDataService.GetPlayerHistoryAsync(player.PlayerId, cancellationToken);
+        var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
+        await Task.WhenAll(historyTask, bootstrapTask);
+        var history = await historyTask;
+        var bootstrap = await bootstrapTask;
+        var teamNames = bootstrap.Teams.ToDictionary(team => team.Id, team => team.Name);
+        var selectedGameweeks = history.Fixtures
             .Where(fixture => fixture.Gameweek is not null)
+            .Select(fixture => fixture.Gameweek!.Value)
+            .Distinct()
+            .Order()
+            .Take(requestedGameweeks)
+            .ToHashSet();
+        var fixtures = history.Fixtures
+            .Where(fixture => fixture.Gameweek is int gameweek && selectedGameweeks.Contains(gameweek))
             .OrderBy(fixture => fixture.Gameweek)
             .ThenBy(fixture => fixture.Kickoff)
-            .Take(Math.Clamp(gameweeks, 1, 5))
-            .Select(fixture => new
-            {
-                fixture.Gameweek,
+            .Select(fixture => new CoachUpcomingFixture(
+                fixture.Id,
+                fixture.Gameweek!.Value,
                 fixture.GameweekName,
                 fixture.Kickoff,
+                teamNames.GetValueOrDefault(fixture.IsHome ? fixture.AwayTeamId : fixture.HomeTeamId) ?? "Unknown opponent",
                 fixture.IsHome,
-                fixture.HomeTeamId,
-                fixture.AwayTeamId,
-                fixture.Difficulty
-            })
+                fixture.IsHome ? "Home" : "Away",
+                fixture.Difficulty))
             .ToArray();
-
-        return Serialize(new
+        var summary = FixtureDifficultyCalculator.Calculate(fixtures.Select(fixture => fixture.Difficulty));
+        var explanation = summary.ScheduleRating switch
         {
-            player.PlayerId,
-            player.PlayerName,
+            "Favorable" => $"{player.PlayerName} has a favorable upcoming schedule based on an average FPL difficulty of {summary.AverageDifficulty:0.00}.",
+            "Mixed" => $"{player.PlayerName} has a mixed upcoming schedule based on an average FPL difficulty of {summary.AverageDifficulty:0.00}.",
+            "Difficult" => $"{player.PlayerName} has a difficult upcoming schedule based on an average FPL difficulty of {summary.AverageDifficulty:0.00}.",
+            _ => $"No published upcoming fixtures were available for {player.PlayerName}."
+        };
+
+        return new PlayerFixtureWindowResult(
+            new CoachFixturePlayer(player.PlayerId, player.PlayerName, player.TeamName, player.Position),
+            requestedGameweeks,
             fixtures,
-            source = "Official FPL element-summary data"
-        });
+            summary.AverageDifficulty,
+            summary.AggregateScore,
+            summary.ScheduleRating,
+            explanation,
+            "Official FPL element-summary and bootstrap data");
     }
 
     public async Task<string> GetTransferOptionsAsync(

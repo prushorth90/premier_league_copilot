@@ -197,7 +197,7 @@ public class CoachTests
             "Knock",
             "Official FPL bootstrap data");
 
-        public Task<string> GetUpcomingFixturesAsync(FplCoachContext context, string playerName, int gameweeks, CancellationToken cancellationToken) =>
+        public Task<PlayerFixtureWindowResult> GetUpcomingFixturesAsync(FplCoachContext context, int playerId, int gameweeks, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<string> GetTransferOptionsAsync(FplCoachContext context, string playerName, int limit, CancellationToken cancellationToken) =>

@@ -22,13 +22,13 @@ public sealed class FplCoachSessionFactory(IFplCoachFactService factService) : I
             });
         var fixturesTool = CopilotTool.DefineTool(
             async (
-                [Description("Exact or partial player name from the connected squad")] string playerName,
+                [Description("Exact player ID from CURRENT_FPL_CONTEXT")] int playerId,
                 [Description("Number of upcoming gameweeks, from 1 to 5")] int gameweeks) =>
-                await factService.GetUpcomingFixturesAsync(context, playerName, gameweeks, cancellationToken),
+                await factService.GetUpcomingFixturesAsync(context, playerId, gameweeks, cancellationToken),
             factoryOptions: new AIFunctionFactoryOptions
             {
                 Name = FplCoachAgents.FixturesTool,
-                Description = "Return official upcoming FPL fixtures for one owned player."
+                Description = "GetUpcomingFixtures(playerId, gameweeks): return official fixtures and deterministic difficulty aggregation for one owned player."
             });
         var transfersTool = CopilotTool.DefineTool(
             async (

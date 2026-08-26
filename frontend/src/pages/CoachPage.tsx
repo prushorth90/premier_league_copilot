@@ -1,4 +1,4 @@
-import { AlertCircle, Bot, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertCircle, Bot, CalendarDays, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { sendCoachMessage } from '../api/coachApi'
 import { ApiError } from '../api/fplApi'
@@ -9,6 +9,7 @@ import { PlayerHeadshot } from '../components/player/PlayerHeadshot'
 
 const suggestions = [
   'Saka is injured',
+  "How are Saka's next 3 fixtures?",
   'Should I sell Saka?',
   'Who can I replace him with?',
 ]
@@ -51,6 +52,7 @@ export function CoachPage() {
         confidence: response.confidence,
         player: response.player,
         availability: response.availability,
+        fixtures: response.fixtures,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -153,6 +155,24 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
             <AvailabilityMetric label="Confidence" value={`${message.availability.confidence.toFixed(0)}%`} />
           </dl>
         )}
+        {message.fixtures && (
+          <div className="mt-3 border-t border-black/8 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase text-black/45"><CalendarDays size={13} /> Next {message.fixtures.requestedGameweeks} gameweeks</span>
+              <span className="text-[10px] font-bold text-[#287c50]">{message.fixtures.scheduleRating} · Score {formatScore(message.fixtures.aggregateScore)}</span>
+            </div>
+            <div className="mt-2 divide-y divide-black/8 border-y border-black/8">
+              {message.fixtures.fixtures.map((fixture) => (
+                <div key={fixture.fixtureId} className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 py-2 text-[10px]">
+                  <span className="font-bold text-black/40">GW{fixture.gameweek}</span>
+                  <span className="truncate font-semibold">{fixture.opponent} ({fixture.isHome ? 'H' : 'A'})</span>
+                  <span className="text-right font-bold">FDR {fixture.difficulty}</span>
+                </div>
+              ))}
+              {message.fixtures.fixtures.length === 0 && <p className="py-2 text-[10px] text-black/45">No published fixtures.</p>}
+            </div>
+          </div>
+        )}
         {(message.isMocked || message.recommendationType) && <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold uppercase text-[#287c50]">{message.isMocked && <span>Mocked response</span>}{message.recommendationType && <span>{message.recommendationType}</span>}{message.confidence !== undefined && <span>{message.confidence.toFixed(0)}% confidence</span>}</div>}
       </div>
     </div>
@@ -173,4 +193,8 @@ function createMessage(role: CoachChatMessage['role'], content: string): CoachCh
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function formatScore(score: number | null) {
+  return score === null ? 'N/A' : score.toFixed(2)
 }

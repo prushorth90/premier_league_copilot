@@ -44,6 +44,13 @@ public sealed class CopilotCoachService(
         var availability = recommendationType == CoachRecommendationType.Availability && matchedPlayer is not null
             ? factService.GetPlayerAvailability(context, matchedPlayer.Id)
             : null;
+        var fixtures = recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null
+            ? await factService.GetUpcomingFixturesAsync(
+                context,
+                matchedPlayer.Id,
+                GetRequestedGameweeks(normalizedMessage),
+                cancellationToken)
+            : null;
         var confidence = availability?.Confidence ?? GetConfidence(recommendationType, matchedPlayer);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, cancellationToken);
         reply = EnsureAvailabilityClaimIsGrounded(reply, availability);
@@ -56,7 +63,8 @@ public sealed class CopilotCoachService(
             recommendationType,
             confidence,
             playerInfo,
-            availability);
+            availability,
+            fixtures);
     }
 
     private static string EnsureAvailabilityClaimIsGrounded(
@@ -116,6 +124,13 @@ public sealed class CopilotCoachService(
             return CoachRecommendationType.Availability;
         }
 
+        if (message.Contains("fixture", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("schedule", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("opponent", StringComparison.OrdinalIgnoreCase))
+        {
+            return CoachRecommendationType.Fixture;
+        }
+
         if (message.Contains("sell", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("transfer out", StringComparison.OrdinalIgnoreCase))
         {
@@ -135,11 +150,27 @@ public sealed class CopilotCoachService(
         recommendationType switch
         {
             CoachRecommendationType.Availability when player is not null => 78m,
+            CoachRecommendationType.Fixture when player is not null => 90m,
             CoachRecommendationType.Transfer when player is not null => 68m,
             CoachRecommendationType.Replacement when player is not null => 64m,
             CoachRecommendationType.General => 35m,
             _ => 45m
         };
+
+    private static int GetRequestedGameweeks(string message)
+    {
+        for (var gameweeks = 1; gameweeks <= 5; gameweeks++)
+        {
+            if (message.Contains($"{gameweeks} fixture", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains($"{gameweeks} gameweek", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains($"next {gameweeks}", StringComparison.OrdinalIgnoreCase))
+            {
+                return gameweeks;
+            }
+        }
+
+        return 3;
+    }
 
     private static bool IsPlayerMentioned(string message, Player player) =>
         ContainsName(message, player.DisplayName) ||

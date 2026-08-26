@@ -22,6 +22,7 @@ describe('sendCoachMessage', () => {
         photoUrl: '/images/player-placeholder.svg',
       },
       availability: null,
+      fixtures: null,
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200,

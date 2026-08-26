@@ -46,6 +46,7 @@ describe('CoachPage', () => {
         evidence: 'Hamstring injury. Expected back 12 Sep.',
         source: 'Official FPL bootstrap data',
       },
+      fixtures: null,
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -76,14 +77,51 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
+  })
+
+  it('renders structured fixture difficulty results', async () => {
+    coachApiMock.sendCoachMessage.mockResolvedValue({
+      message: 'Saka has a favorable upcoming schedule.',
+      teamId: 7558250,
+      respondedAt: '2026-08-26T12:00:00Z',
+      isMocked: false,
+      recommendationType: 'Fixture',
+      confidence: 90,
+      player: null,
+      availability: null,
+      fixtures: {
+        player: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID' },
+        requestedGameweeks: 3,
+        fixtures: [
+          { fixtureId: 1, gameweek: 9, gameweekName: 'Gameweek 9', kickoff: '2026-09-12T14:00:00Z', opponent: 'Chelsea', isHome: true, venue: 'Home', difficulty: 2 },
+          { fixtureId: 2, gameweek: 10, gameweekName: 'Gameweek 10', kickoff: null, opponent: 'Liverpool', isHome: false, venue: 'Away', difficulty: 3 },
+        ],
+        averageDifficulty: 2.5,
+        aggregateScore: 3.5,
+        scheduleRating: 'Favorable',
+        explanation: 'Saka has a favorable upcoming schedule.',
+        source: 'Official FPL element-summary and bootstrap data',
+      },
+    })
+    const user = userEvent.setup()
+    render(<CoachPage />)
+
+    await user.type(screen.getByLabelText('Message AI Coach'), "How are Saka's next 3 fixtures?")
+    await user.click(screen.getByRole('button', { name: 'Send message' }))
+
+    expect(await screen.findByText('Chelsea (H)')).toBeTruthy()
+    expect(screen.getByText('Liverpool (A)')).toBeTruthy()
+    expect(screen.getByText('Favorable · Score 3.50')).toBeTruthy()
+    expect(screen.getByText('FDR 2')).toBeTruthy()
+    expect(screen.getByText('Fixture')).toBeTruthy()
   })
 
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 

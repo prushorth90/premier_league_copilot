@@ -25,7 +25,9 @@ public class FplCoachAgentTests
         Assert.True(injury.Infer);
         Assert.Contains("Official FPL data does not confirm", injury.Prompt);
         var fixture = Assert.Single(agents, agent => agent.Name == FplCoachAgents.FixtureSpecialistName);
+        Assert.Equal("FixtureAgent", fixture.Name);
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
+        Assert.Contains("Do not recommend", fixture.Prompt);
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
         Assert.Equal([FplCoachAgents.TransfersTool], transfer.Tools);
     }
@@ -81,15 +83,66 @@ public class FplCoachAgentTests
         var service = new FplCoachFactService(dataService, transferService);
         var context = CreateContext();
 
-        var fixtures = await service.GetUpcomingFixturesAsync(context, "Saka", 3, CancellationToken.None);
+        var fixtures = await service.GetUpcomingFixturesAsync(context, 10, 3, CancellationToken.None);
         var transfers = await service.GetTransferOptionsAsync(context, "Saka", 3, CancellationToken.None);
 
-        Assert.Contains("Official FPL element-summary data", fixtures);
-        Assert.Contains("Gameweek 9", fixtures);
+        Assert.Equal("Official FPL element-summary and bootstrap data", fixtures.Source);
+        Assert.Equal(3, fixtures.RequestedGameweeks);
+        Assert.Equal(4, fixtures.Fixtures.Count);
+        Assert.Equal("Chelsea", fixtures.Fixtures[0].Opponent);
+        Assert.True(fixtures.Fixtures[0].IsHome);
+        Assert.Equal("Home", fixtures.Fixtures[0].Venue);
+        Assert.Equal(2, fixtures.Fixtures[0].Difficulty);
+        Assert.Equal(2m, fixtures.AverageDifficulty);
+        Assert.Equal(4m, fixtures.AggregateScore);
+        Assert.Equal("Favorable", fixtures.ScheduleRating);
+        Assert.Contains("favorable", fixtures.Explanation, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Touchline transfer recommendation engine", transfers);
         Assert.Contains("Replacement", transfers);
         Assert.Equal(10, dataService.RequestedPlayerId);
         Assert.Equal((42, 3), transferService.Request);
+    }
+
+    [Theory]
+    [InlineData(new[] { 1, 2, 2 }, 1.67, 4.33, "Favorable")]
+    [InlineData(new[] { 2, 3, 4 }, 3.00, 3.00, "Mixed")]
+    [InlineData(new[] { 4, 5, 5 }, 4.67, 1.33, "Difficult")]
+    public void FixtureDifficultyCalculatorUsesDeterministicFplScale(
+        int[] difficulties,
+        decimal expectedAverage,
+        decimal expectedScore,
+        string expectedRating)
+    {
+        var result = FixtureDifficultyCalculator.Calculate(difficulties);
+
+        Assert.Equal(expectedAverage, result.AverageDifficulty);
+        Assert.Equal(expectedScore, result.AggregateScore);
+        Assert.Equal(expectedRating, result.ScheduleRating);
+    }
+
+    [Fact]
+    public void FixtureDifficultyCalculatorHandlesEmptyAndInvalidData()
+    {
+        var empty = FixtureDifficultyCalculator.Calculate([]);
+
+        Assert.Null(empty.AverageDifficulty);
+        Assert.Null(empty.AggregateScore);
+        Assert.Equal("Unknown", empty.ScheduleRating);
+        Assert.Throws<ArgumentOutOfRangeException>(() => FixtureDifficultyCalculator.Calculate([0, 3]));
+    }
+
+    [Fact]
+    public async Task FixtureToolClampsWindowToFiveGameweeksAndRejectsNonOwnedPlayer()
+    {
+        var service = new FplCoachFactService(new StubFplDataService(), new StubTransferService());
+        var context = CreateContext();
+
+        var result = await service.GetUpcomingFixturesAsync(context, 10, 99, CancellationToken.None);
+
+        Assert.Equal(5, result.RequestedGameweeks);
+        Assert.Equal(5, result.Fixtures.Select(fixture => fixture.Gameweek).Distinct().Count());
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            service.GetUpcomingFixturesAsync(context, 999, 3, CancellationToken.None));
     }
 
     private static FplCoachContext CreateContext() => new(
@@ -121,12 +174,30 @@ public class FplCoachAgentTests
         {
             RequestedPlayerId = playerId;
             return Task.FromResult(new PlayerHistory(
-                [new PlayerFixture(1, 9, "Gameweek 9", DateTimeOffset.UtcNow.AddDays(7), true, 1, 2, 2)],
+                [
+                    new PlayerFixture(1, 9, "Gameweek 9", DateTimeOffset.UtcNow.AddDays(7), true, 1, 2, 2),
+                    new PlayerFixture(2, 10, "Gameweek 10", DateTimeOffset.UtcNow.AddDays(14), false, 3, 1, 3),
+                    new PlayerFixture(3, 10, "Gameweek 10", DateTimeOffset.UtcNow.AddDays(17), true, 1, 4, 1),
+                    new PlayerFixture(4, 11, "Gameweek 11", DateTimeOffset.UtcNow.AddDays(21), false, 5, 1, 2),
+                    new PlayerFixture(5, 12, "Gameweek 12", DateTimeOffset.UtcNow.AddDays(28), true, 1, 6, 5),
+                    new PlayerFixture(6, 13, "Gameweek 13", DateTimeOffset.UtcNow.AddDays(35), false, 2, 1, 4)
+                ],
                 [],
                 []));
         }
 
-        public Task<BootstrapData> GetBootstrapDataAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BootstrapData> GetBootstrapDataAsync(CancellationToken cancellationToken) => Task.FromResult(new BootstrapData(
+            [],
+            [
+                new Team(1, 1, "Arsenal", "ARS", 4, 4, 4),
+                new Team(2, 2, "Chelsea", "CHE", 4, 4, 4),
+                new Team(3, 3, "Liverpool", "LIV", 4, 4, 4),
+                new Team(4, 4, "Everton", "EVE", 3, 3, 3),
+                new Team(5, 5, "Newcastle", "NEW", 4, 4, 4),
+                new Team(6, 6, "Man City", "MCI", 5, 5, 5)
+            ],
+            [],
+            []));
         public Task<IReadOnlyList<Fixture>> GetFixturesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Manager> GetManagerAsync(int managerId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<Squad> GetManagerPicksAsync(int managerId, int gameweek, CancellationToken cancellationToken) => throw new NotSupportedException();

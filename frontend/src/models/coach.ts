@@ -12,9 +12,10 @@ export interface CoachChatResponse {
   confidence: number
   player: CoachPlayerInfo | null
   availability: PlayerAvailabilityResult | null
+  fixtures: PlayerFixtureWindowResult | null
 }
 
-export type CoachRecommendationType = 'General' | 'Availability' | 'Transfer' | 'Replacement'
+export type CoachRecommendationType = 'General' | 'Availability' | 'Fixture' | 'Transfer' | 'Replacement'
 
 export interface CoachPlayerInfo {
   playerId: number
@@ -43,6 +44,33 @@ export interface PlayerAvailabilityResult {
   source: string
 }
 
+export interface PlayerFixtureWindowResult {
+  player: {
+    playerId: number
+    playerName: string
+    teamName: string
+    position: string
+  }
+  requestedGameweeks: number
+  fixtures: CoachUpcomingFixture[]
+  averageDifficulty: number | null
+  aggregateScore: number | null
+  scheduleRating: string
+  explanation: string
+  source: string
+}
+
+export interface CoachUpcomingFixture {
+  fixtureId: number
+  gameweek: number
+  gameweekName: string
+  kickoff: string | null
+  opponent: string
+  isHome: boolean
+  venue: string
+  difficulty: number
+}
+
 export interface CoachChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -53,4 +81,5 @@ export interface CoachChatMessage {
   confidence?: number
   player?: CoachPlayerInfo | null
   availability?: PlayerAvailabilityResult | null
+  fixtures?: PlayerFixtureWindowResult | null
 }
