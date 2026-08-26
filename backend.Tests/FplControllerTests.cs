@@ -51,6 +51,7 @@ public class FplControllerTests
         {
             Manager = CreateManager(),
             BootstrapData = CreateBootstrapData(),
+            Fixtures = [new Fixture(7, 700, 4, DateTimeOffset.UtcNow, false, false, 1, 2, null, null, 2, 4)],
             Squad = new Squad(
                 null,
                 new SquadGameweekSummary(3, 67, 180, 1234, 15, 1012, 1, 4, 8),
@@ -68,6 +69,8 @@ public class FplControllerTests
         Assert.Equal("Arsenal", pick.TeamName);
         Assert.Equal("MID", pick.PositionName);
         Assert.Equal(5.5m, pick.Price);
+        Assert.Equal(5, pick.GameweekPoints);
+        Assert.Equal("CHE (H)", pick.NextOpponent);
     }
 
     [Fact]

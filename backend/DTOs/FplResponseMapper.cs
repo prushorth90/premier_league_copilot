@@ -62,11 +62,13 @@ public static class FplResponseMapper
     public static FplSquadResponse ToResponse(
         this Squad squad,
         Manager manager,
-        BootstrapData bootstrapData)
+        BootstrapData bootstrapData,
+        IReadOnlyList<Fixture> fixtures)
     {
         var players = bootstrapData.Players.ToDictionary(player => player.Id);
         var teams = bootstrapData.Teams.ToDictionary(team => team.Id);
         var positions = bootstrapData.PlayerPositions.ToDictionary(position => position.Id);
+        var nextGameweekId = bootstrapData.Gameweeks.FirstOrDefault(gameweek => gameweek.IsNext)?.Id;
 
         return new FplSquadResponse(
             manager.Id,
@@ -91,6 +93,16 @@ public static class FplResponseMapper
                 var positionName = player is null
                     ? "Unknown"
                     : positions.GetValueOrDefault(player.PositionId)?.ShortName ?? "Unknown";
+                var nextFixture = player is null || nextGameweekId is null
+                    ? null
+                    : fixtures.FirstOrDefault(fixture =>
+                        fixture.Gameweek == nextGameweekId &&
+                        (fixture.HomeTeamId == player.TeamId || fixture.AwayTeamId == player.TeamId));
+                var nextOpponent = player is null || nextFixture is null
+                    ? null
+                    : nextFixture.HomeTeamId == player.TeamId
+                        ? $"{teams.GetValueOrDefault(nextFixture.AwayTeamId)?.ShortName ?? "TBC"} (H)"
+                        : $"{teams.GetValueOrDefault(nextFixture.HomeTeamId)?.ShortName ?? "TBC"} (A)";
 
                 return new FplSquadPickResponse(
                     pick.PlayerId,
@@ -101,7 +113,9 @@ public static class FplResponseMapper
                     pick.Position,
                     pick.Multiplier,
                     pick.IsCaptain,
-                    pick.IsViceCaptain);
+                        pick.IsViceCaptain,
+                        player?.GameweekPoints ?? 0,
+                        nextOpponent);
             }).ToArray());
     }
 

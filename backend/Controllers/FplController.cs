@@ -67,11 +67,13 @@ public sealed class FplController(
             manager.CurrentGameweek,
             cancellationToken);
         var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
-        await Task.WhenAll(squadTask, bootstrapTask);
+        var fixturesTask = fplDataService.GetFixturesAsync(cancellationToken);
+        await Task.WhenAll(squadTask, bootstrapTask, fixturesTask);
 
         var squad = await squadTask;
         var bootstrapData = await bootstrapTask;
-        return Ok(squad.ToResponse(manager, bootstrapData));
+        var fixtures = await fixturesTask;
+        return Ok(squad.ToResponse(manager, bootstrapData, fixtures));
     }
 
     [HttpGet("players", Name = "GetFplPlayers")]

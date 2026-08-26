@@ -85,4 +85,6 @@ export interface FplSquadPick {
   multiplier: number
   isCaptain: boolean
   isViceCaptain: boolean
+  gameweekPoints: number
+  nextOpponent: string | null
 }

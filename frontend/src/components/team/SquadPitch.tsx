@@ -1,29 +1,51 @@
-import { squad } from '../../data/placeholderData'
+import type { FplSquadPick } from '../../models/fpl'
+import { PlayerCard } from './PlayerCard'
 
-export function SquadPitch() {
+const positionOrder = ['GKP', 'DEF', 'MID', 'FWD']
+
+export function SquadPitch({ picks }: { picks: FplSquadPick[] }) {
+  const starters = picks.filter((pick) => pick.squadPosition <= 11)
+  const bench = picks.filter((pick) => pick.squadPosition > 11)
+  const rows = positionOrder
+    .map((position) => ({ position, players: starters.filter((pick) => pick.positionName === position) }))
+    .filter((row) => row.players.length > 0)
+
   return (
-    <div className="pitch relative mx-auto aspect-[4/5] w-full max-w-2xl overflow-hidden bg-[#287c50]" aria-label="Squad formation">
-      <div className="absolute inset-x-[7%] top-1/2 border-t border-white/30" />
-      <div className="absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30" />
-      <div className="absolute inset-x-[22%] top-0 h-[12%] border-x border-b border-white/30" />
-      <div className="absolute inset-x-[22%] bottom-0 h-[12%] border-x border-t border-white/30" />
-      {squad.map((player) => (
-        <div
-          key={player.id}
-          className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
-          style={{ left: `${player.x}%`, top: `${player.y}%` }}
-        >
-          <div className="relative mx-auto grid size-9 place-items-center rounded-full border-2 border-white bg-[#151a17] text-[10px] font-bold text-[#b8ff3d] shadow-lg sm:size-11 sm:text-xs">
-            {player.role}
-            {player.captain && (
-              <span className="absolute -right-2 -top-2 grid size-5 place-items-center rounded-full bg-[#ff795f] text-[9px] text-[#151a17]">C</span>
-            )}
-          </div>
-          <span className="mt-1 inline-block bg-white px-1.5 py-0.5 text-[9px] font-bold text-[#151a17] shadow sm:text-[11px]">
-            {player.name}
-          </span>
+    <div className="mx-auto w-full max-w-5xl" aria-label="Squad formation">
+      <div className="pitch relative overflow-hidden border-4 border-white/70 bg-[#287c50] px-2 py-5 shadow-lg sm:px-5 sm:py-8">
+        <div className="pointer-events-none absolute inset-x-[6%] top-1/2 border-t border-white/25" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 size-28 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25" />
+        <div className="pointer-events-none absolute inset-x-[24%] top-0 h-[10%] border-x border-b border-white/25" />
+        <div className="pointer-events-none absolute inset-x-[24%] bottom-0 h-[10%] border-x border-t border-white/25" />
+        <div className="relative grid min-h-[42rem] grid-rows-4 gap-5 sm:min-h-[48rem] sm:gap-7">
+          {rows.map((row) => (
+            <section key={row.position} className="flex items-center justify-center" aria-label={row.position}>
+              <div className="grid w-full grid-flow-col auto-cols-fr justify-center gap-1.5 sm:gap-4">
+                {row.players.map((player) => (
+                  <div key={player.playerId} className="flex min-w-0 justify-center">
+                    <PlayerCard player={player} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <section className="mt-4 border border-black/10 bg-[#dfe0d8] p-3 sm:p-5" aria-label="Substitutes">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-bold uppercase text-black/55">Substitutes</h2>
+          <span className="text-xs text-black/40">Bench order</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+          {bench.map((player, index) => (
+            <div key={player.playerId} className="relative min-w-0">
+              <span className="absolute -left-1.5 -top-1.5 z-10 grid size-5 place-items-center rounded-full bg-[#ff795f] text-[9px] font-bold">{index + 1}</span>
+              <PlayerCard player={player} variant="bench" />
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

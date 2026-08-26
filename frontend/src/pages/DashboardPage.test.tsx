@@ -54,6 +54,8 @@ describe('DashboardPage', () => {
         multiplier: 2,
         isCaptain: true,
         isViceCaptain: false,
+        gameweekPoints: 5,
+        nextOpponent: 'CHE (H)',
       }],
     }
     const fixtures: FplFixture[] = [{

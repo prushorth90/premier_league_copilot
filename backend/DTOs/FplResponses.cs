@@ -80,4 +80,6 @@ public sealed record FplSquadPickResponse(
     int SquadPosition,
     int Multiplier,
     bool IsCaptain,
-    bool IsViceCaptain);
+    bool IsViceCaptain,
+    int GameweekPoints,
+    string? NextOpponent);
