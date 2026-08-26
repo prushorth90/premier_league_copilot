@@ -13,8 +13,9 @@ Initial full-stack foundation for an FPL recommendation application. This reposi
 
 ```text
 .
-├── frontend/   React application
-└── backend/    ASP.NET Core Web API
+├── frontend/       React application
+├── backend/        ASP.NET Core Web API
+└── backend.Tests/  Backend unit tests
 ```
 
 ## Prerequisites
@@ -57,6 +58,32 @@ docker compose down --volumes
 ```
 
 View service logs with `docker compose logs -f SERVICE`, where `SERVICE` is `frontend`, `backend`, `postgres`, or `redis`.
+
+## Continuous integration
+
+The GitHub Actions CI workflow runs on every push and pull request. It performs:
+
+- Frontend dependency installation, type-checking, linting, tests, and production build
+- Backend NuGet restore, Release build, and all solution tests
+- Docker Compose configuration validation and fresh frontend/backend image builds
+
+Run the same application checks locally with:
+
+```bash
+cd frontend
+npm ci
+npm run typecheck
+npm run lint
+npm test
+npm run build
+
+cd ../
+dotnet restore PremierLeagueCopilot.sln
+dotnet build PremierLeagueCopilot.sln --configuration Release --no-restore
+dotnet test PremierLeagueCopilot.sln --configuration Release --no-build
+
+docker compose build
+```
 
 ## Frontend
 
