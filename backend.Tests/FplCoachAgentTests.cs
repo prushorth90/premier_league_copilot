@@ -25,6 +25,8 @@ public class FplCoachAgentTests
         Assert.Equal([FplCoachAgents.AvailabilityTool], injury.Tools);
         Assert.True(injury.Infer);
         Assert.Contains("Official FPL data does not confirm", injury.Prompt);
+        Assert.Contains("expected minutes are unavailable", injury.Prompt);
+        Assert.Contains("Do not analyze fixtures", injury.Prompt);
         var fixture = Assert.Single(agents, agent => agent.Name == FplCoachAgents.FixtureSpecialistName);
         Assert.Equal("FixtureAgent", fixture.Name);
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
@@ -106,6 +108,7 @@ public class FplCoachAgentTests
         Assert.Equal(75, owned.ChanceOfPlayingNextRound);
         Assert.Equal("12 Sep", owned.ExpectedReturn);
         Assert.Equal(85m, owned.Confidence);
+        Assert.Null(owned.ExpectedMinutes);
         Assert.Equal("Official FPL bootstrap data", owned.Source);
         var available = service.GetPlayerAvailability(context, 102);
         Assert.Equal("Available", available.StatusDescription);

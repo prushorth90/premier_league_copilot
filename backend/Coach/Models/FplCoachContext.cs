@@ -30,7 +30,8 @@ public sealed record PlayerAvailabilityResult(
     string? ExpectedReturn,
     decimal Confidence,
     string Evidence,
-    string Source);
+    string Source,
+    decimal? ExpectedMinutes = null);
 
 public sealed record CoachAvailabilityPlayer(
     int PlayerId,
