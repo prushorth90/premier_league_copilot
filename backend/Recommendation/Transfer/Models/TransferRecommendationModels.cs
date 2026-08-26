@@ -35,7 +35,8 @@ public sealed record TransferPlayer(
     string Position,
     decimal Price,
     string Status,
-    decimal ExpectedMinutes);
+    decimal ExpectedMinutes,
+    IReadOnlyList<string> NextFixtures);
 
 public sealed record TransferHorizonGain(
     int Gameweeks,
@@ -53,4 +54,5 @@ public sealed record TransferPlayerContext(
     string TeamName,
     string Position,
     PlayerProjection Projection,
-    int? SellingPrice = null);
+    int? SellingPrice = null,
+    IReadOnlyList<string>? NextFixtures = null);

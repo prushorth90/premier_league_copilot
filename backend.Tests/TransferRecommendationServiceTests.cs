@@ -26,6 +26,7 @@ public class TransferRecommendationServiceTests
         Assert.Equal(2, result.Recommendations.Count);
         Assert.Equal(2, result.Combinations.Count);
         Assert.All(result.Recommendations, recommendation => Assert.Equal(101, recommendation.PlayerIn.PlayerId));
+        Assert.All(result.Recommendations, recommendation => Assert.Equal(["T1 (H)"], recommendation.PlayerIn.NextFixtures));
         Assert.Equal(Enumerable.Range(1, 15).Concat([101, 104]).Order(), dataService.RequestedHistoryIds.Order());
         Assert.DoesNotContain(102, dataService.RequestedHistoryIds);
         Assert.DoesNotContain(103, dataService.RequestedHistoryIds);
@@ -103,7 +104,10 @@ public class TransferRecommendationServiceTests
         public Task<PlayerHistory> GetPlayerHistoryAsync(int playerId, CancellationToken cancellationToken)
         {
             RequestedHistoryIds.Add(playerId);
-            return Task.FromResult(new PlayerHistory([], [], []));
+            return Task.FromResult(new PlayerHistory(
+                [new PlayerFixture(playerId, 4, "Gameweek 4", DateTimeOffset.UtcNow.AddDays(7), true, 6, 1, 3)],
+                [],
+                []));
         }
 
         public Task<IReadOnlyList<Fixture>> GetFixturesAsync(CancellationToken cancellationToken) =>

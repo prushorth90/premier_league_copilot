@@ -146,3 +146,55 @@ export interface LineupChange {
   currentSquadPosition: number
   recommendedSquadPosition: number
 }
+
+export interface TransferRecommendationResponse {
+  teamId: number
+  gameweek: number
+  calculatedAt: string
+  bank: number
+  recommendations: TransferRecommendation[]
+  combinations: TransferCombinationRecommendation[]
+}
+
+export interface TransferRecommendation {
+  playerOut: TransferPlayer
+  playerIn: TransferPlayer
+  priceDifference: number
+  expectedPointGains: TransferHorizonGain[]
+  weightedGain: number
+  confidenceScore: number
+  explanations: TransferExplanation[]
+}
+
+export interface TransferCombinationRecommendation {
+  transfers: TransferRecommendation[]
+  totalPriceDifference: number
+  expectedPointGains: TransferHorizonGain[]
+  weightedGain: number
+  confidenceScore: number
+  explanations: TransferExplanation[]
+}
+
+export interface TransferPlayer {
+  playerId: number
+  playerName: string
+  teamName: string
+  position: string
+  price: number
+  status: string
+  expectedMinutes: number
+  nextFixtures: string[]
+}
+
+export interface TransferHorizonGain {
+  gameweeks: number
+  playerOutPoints: number
+  playerInPoints: number
+  expectedPointGain: number
+}
+
+export interface TransferExplanation {
+  factor: string
+  score: number
+  explanation: string
+}

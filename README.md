@@ -109,6 +109,8 @@ npm test
 
 The frontend uses a typed API client and TanStack Query for all backend FPL requests. Team and squad data remain fresh for 5 minutes, fixtures for 15 minutes, and players for 60 minutes. Queries refetch when stale on window focus, retry transient failures, and skip retries for missing resources. The Dashboard also provides a manual refresh action for all four resources.
 
+The Transfers page shows live bank and free-transfer availability, then ranks the top single moves and jointly funded two-transfer combinations. Users can switch between 1-gameweek and 5-gameweek ordering while retaining visible 1/3/5-gameweek gains, incoming fixtures, confidence, price impact, and recommendation reasoning.
+
 Set `VITE_API_BASE_URL` in `frontend/.env` when the API is not running at `http://localhost:5082`.
 
 ## Backend

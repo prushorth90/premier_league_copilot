@@ -87,11 +87,24 @@ public sealed class TransferRecommendationService(
             try
             {
                 var history = await fplDataService.GetPlayerHistoryAsync(player.Id, cancellationToken);
+                var nextFixtures = history.Fixtures
+                    .Where(fixture => fixture.Gameweek is not null)
+                    .OrderBy(fixture => fixture.Gameweek)
+                    .ThenBy(fixture => fixture.Kickoff)
+                    .Take(3)
+                    .Select(fixture =>
+                    {
+                        var opponentTeamId = fixture.IsHome ? fixture.AwayTeamId : fixture.HomeTeamId;
+                        var opponent = teams.GetValueOrDefault(opponentTeamId)?.ShortName ?? "TBC";
+                        return $"{opponent} ({(fixture.IsHome ? "H" : "A")})";
+                    })
+                    .ToArray();
                 return new TransferPlayerContext(
                     player,
                     teams.GetValueOrDefault(player.TeamId)?.Name ?? "Unknown team",
                     positions.GetValueOrDefault(player.PositionId)?.ShortName ?? "Unknown",
-                    projectionCalculator.Calculate(player, history));
+                    projectionCalculator.Calculate(player, history),
+                    NextFixtures: nextFixtures);
             }
             finally
             {

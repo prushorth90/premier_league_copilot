@@ -251,7 +251,8 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
         context.Position,
         price / 10m,
         context.Player.Status,
-        Round(context.Projection.ExpectedMinutes));
+        Round(context.Projection.ExpectedMinutes),
+        context.NextFixtures ?? []);
 
     private static ProjectionHorizon Horizon(TransferPlayerContext context, int gameweeks) =>
         context.Projection.Horizons.Single(horizon => horizon.Gameweeks == gameweeks);

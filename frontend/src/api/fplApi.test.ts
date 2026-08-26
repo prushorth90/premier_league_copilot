@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getCaptainRecommendation, getFixtures, getLineupRecommendation, getPlayers, getSquad, getTeam, TeamVerificationError, verifyTeam } from './fplApi'
+import { getCaptainRecommendation, getFixtures, getLineupRecommendation, getPlayers, getSquad, getTeam, getTransferRecommendations, TeamVerificationError, verifyTeam } from './fplApi'
 
 describe('verifyTeam', () => {
   afterEach(() => {
@@ -44,15 +44,17 @@ describe('verifyTeam', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify([{ id: 7, homeTeam: 'Arsenal' }]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ teamId: 42, bestCaptain: { playerName: 'Player' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ teamId: 42, formation: '3-4-3' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ teamId: 42, recommendations: [], combinations: [] }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const [team, squad, players, fixtures, captainRecommendation, lineupRecommendation] = await Promise.all([
+    const [team, squad, players, fixtures, captainRecommendation, lineupRecommendation, transferRecommendations] = await Promise.all([
       getTeam(42),
       getSquad(42),
       getPlayers(),
       getFixtures(),
       getCaptainRecommendation(42),
       getLineupRecommendation(42),
+      getTransferRecommendations(42),
     ])
 
     expect(team.id).toBe(42)
@@ -61,6 +63,7 @@ describe('verifyTeam', () => {
     expect(fixtures[0]?.homeTeam).toBe('Arsenal')
     expect(captainRecommendation.bestCaptain.playerName).toBe('Player')
     expect(lineupRecommendation.formation).toBe('3-4-3')
+    expect(transferRecommendations.recommendations).toEqual([])
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       'http://localhost:5082/api/fpl/team/42',
       'http://localhost:5082/api/fpl/team/42/squad',
@@ -68,6 +71,7 @@ describe('verifyTeam', () => {
       'http://localhost:5082/api/fpl/fixtures',
       'http://localhost:5082/api/recommendations/42/captain',
       'http://localhost:5082/api/recommendations/42/lineup',
+      'http://localhost:5082/api/recommendations/42/transfers?limit=10',
     ])
   })
 })

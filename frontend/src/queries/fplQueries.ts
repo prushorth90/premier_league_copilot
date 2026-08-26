@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getCaptainRecommendation, getFixtures, getLineupRecommendation, getPlayers, getSquad, getTeam } from '../api/fplApi'
+import { getCaptainRecommendation, getFixtures, getLineupRecommendation, getPlayers, getSquad, getTeam, getTransferRecommendations } from '../api/fplApi'
 
 const minute = 60_000
 
@@ -11,6 +11,7 @@ export const fplQueryKeys = {
   fixtures: () => [...fplQueryKeys.all, 'fixtures'] as const,
   captainRecommendation: (teamId: number | null) => [...fplQueryKeys.all, 'recommendations', 'captain', teamId] as const,
   lineupRecommendation: (teamId: number | null) => [...fplQueryKeys.all, 'recommendations', 'lineup', teamId] as const,
+  transferRecommendations: (teamId: number | null) => [...fplQueryKeys.all, 'recommendations', 'transfers', teamId] as const,
 }
 
 export function useFplTeamQuery(teamId: number | null) {
@@ -60,6 +61,15 @@ export function useLineupRecommendationQuery(teamId: number | null) {
   return useQuery({
     queryKey: fplQueryKeys.lineupRecommendation(teamId),
     queryFn: ({ signal }) => getLineupRecommendation(teamId!, signal),
+    enabled: teamId !== null,
+    staleTime: 15 * minute,
+  })
+}
+
+export function useTransferRecommendationsQuery(teamId: number | null) {
+  return useQuery({
+    queryKey: fplQueryKeys.transferRecommendations(teamId),
+    queryFn: ({ signal }) => getTransferRecommendations(teamId!, signal),
     enabled: teamId !== null,
     staleTime: 15 * minute,
   })
