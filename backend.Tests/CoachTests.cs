@@ -46,6 +46,14 @@ public class CoachTests
             Assert.Equal("Doubtful", response.Availability?.StatusDescription);
             Assert.Equal(85m, response.Availability?.Confidence);
         }
+        if (expectedType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement)
+        {
+            Assert.Equal(80m, response.Confidence);
+            Assert.Equal(10.5m, response.Transfers?.MaximumPurchasePrice);
+            var candidate = Assert.Single(response.Transfers!.Candidates);
+            Assert.Equal("Palmer", candidate.Player.PlayerName);
+            Assert.Equal(8m, candidate.ProjectedPointDifference);
+        }
         Assert.Equal(message, copilotClient.Message);
         Assert.Equal(15, copilotClient.Context?.Squad.Count);
         var contextPlayer = Assert.Single(copilotClient.Context!.Squad, player => player.PlayerName == "Saka");
@@ -200,8 +208,22 @@ public class CoachTests
         public Task<PlayerFixtureWindowResult> GetUpcomingFixturesAsync(FplCoachContext context, int playerId, int gameweeks, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<string> GetTransferOptionsAsync(FplCoachContext context, string playerName, int limit, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public Task<PlayerReplacementResult> GetTransferCandidatesAsync(FplCoachContext context, int playerId, int limit, CancellationToken cancellationToken) =>
+            Task.FromResult(new PlayerReplacementResult(
+                new CoachTransferPlayer(playerId, "Saka", "Arsenal", "MID", 10m),
+                0.5m,
+                10.5m,
+                5,
+                [new CoachReplacementCandidate(
+                    1,
+                    new CoachTransferPlayer(20, "Palmer", "Chelsea", "MID", 9.5m),
+                    -0.5m,
+                    25m,
+                    33m,
+                    8m,
+                    80m,
+                    "Adds 8 projected points over five gameweeks.")],
+                "Touchline transfer recommendation engine"));
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset timestamp) : TimeProvider

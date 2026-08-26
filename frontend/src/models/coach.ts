@@ -13,6 +13,7 @@ export interface CoachChatResponse {
   player: CoachPlayerInfo | null
   availability: PlayerAvailabilityResult | null
   fixtures: PlayerFixtureWindowResult | null
+  transfers: PlayerReplacementResult | null
 }
 
 export type CoachRecommendationType = 'General' | 'Availability' | 'Fixture' | 'Transfer' | 'Replacement'
@@ -71,6 +72,34 @@ export interface CoachUpcomingFixture {
   difficulty: number
 }
 
+export interface PlayerReplacementResult {
+  playerOut: CoachTransferPlayer
+  bank: number
+  maximumPurchasePrice: number
+  projectionGameweeks: number
+  candidates: CoachReplacementCandidate[]
+  source: string
+}
+
+export interface CoachTransferPlayer {
+  playerId: number
+  playerName: string
+  teamName: string
+  position: string
+  price: number
+}
+
+export interface CoachReplacementCandidate {
+  rank: number
+  player: CoachTransferPlayer
+  priceDifference: number
+  playerOutProjectedPoints: number
+  candidateProjectedPoints: number
+  projectedPointDifference: number
+  confidence: number
+  reason: string
+}
+
 export interface CoachChatMessage {
   id: string
   role: 'user' | 'assistant'
@@ -82,4 +111,5 @@ export interface CoachChatMessage {
   player?: CoachPlayerInfo | null
   availability?: PlayerAvailabilityResult | null
   fixtures?: PlayerFixtureWindowResult | null
+  transfers?: PlayerReplacementResult | null
 }

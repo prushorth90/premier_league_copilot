@@ -35,6 +35,31 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
             .ToArray();
     }
 
+    public IReadOnlyList<TransferRecommendation> RankReplacements(
+        IReadOnlyList<TransferPlayerContext> squad,
+        IReadOnlyList<TransferPlayerContext> market,
+        int bank,
+        int playerOutId,
+        int limit = 5)
+    {
+        ValidateInputs(squad, bank, limit);
+        var playerOut = squad.SingleOrDefault(context => context.Player.Id == playerOutId)
+            ?? throw new KeyNotFoundException($"Player {playerOutId} was not found in the connected 15-player squad.");
+        var ownedIds = squad.Select(context => context.Player.Id).ToHashSet();
+        var clubCounts = squad.GroupBy(context => context.Player.TeamId).ToDictionary(group => group.Key, group => group.Count());
+
+        return market
+            .Where(playerIn => IsValidReplacement(playerOut, playerIn, ownedIds, clubCounts, bank))
+            .Select(playerIn => CreateRecommendation(playerOut, playerIn))
+            .Where(recommendation => recommendation.WeightedGain > 0m)
+            .OrderByDescending(recommendation => recommendation.WeightedGain)
+            .ThenByDescending(recommendation => recommendation.ConfidenceScore)
+            .ThenByDescending(recommendation => recommendation.ExpectedPointGains.Single(gain => gain.Gameweeks == 5).ExpectedPointGain)
+            .ThenBy(recommendation => recommendation.PlayerIn.PlayerId)
+            .Take(limit)
+            .ToArray();
+    }
+
     public IReadOnlyList<TransferCombinationRecommendation> RankCombinations(
         IReadOnlyList<TransferPlayerContext> squad,
         IReadOnlyList<TransferPlayerContext> market,

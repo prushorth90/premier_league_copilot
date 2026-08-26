@@ -63,3 +63,28 @@ public sealed record CoachUpcomingFixture(
     bool IsHome,
     string Venue,
     int Difficulty);
+
+public sealed record PlayerReplacementResult(
+    CoachTransferPlayer PlayerOut,
+    decimal Bank,
+    decimal MaximumPurchasePrice,
+    int ProjectionGameweeks,
+    IReadOnlyList<CoachReplacementCandidate> Candidates,
+    string Source);
+
+public sealed record CoachTransferPlayer(
+    int PlayerId,
+    string PlayerName,
+    string TeamName,
+    string Position,
+    decimal Price);
+
+public sealed record CoachReplacementCandidate(
+    int Rank,
+    CoachTransferPlayer Player,
+    decimal PriceDifference,
+    decimal PlayerOutProjectedPoints,
+    decimal CandidateProjectedPoints,
+    decimal ProjectedPointDifference,
+    decimal Confidence,
+    string Reason);

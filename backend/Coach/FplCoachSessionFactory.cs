@@ -32,13 +32,13 @@ public sealed class FplCoachSessionFactory(IFplCoachFactService factService) : I
             });
         var transfersTool = CopilotTool.DefineTool(
             async (
-                [Description("Exact or partial player name from the connected squad")] string playerName,
-                [Description("Maximum replacement options, from 1 to 10")] int limit) =>
-                await factService.GetTransferOptionsAsync(context, playerName, limit, cancellationToken),
+                [Description("Exact player ID from CURRENT_FPL_CONTEXT")] int playerId,
+                [Description("Maximum replacement options, from 1 to 5")] int limit) =>
+                await factService.GetTransferCandidatesAsync(context, playerId, limit, cancellationToken),
             factoryOptions: new AIFunctionFactoryOptions
             {
                 Name = FplCoachAgents.TransfersTool,
-                Description = "Return valid replacement recommendations for one owned player."
+                Description = "GetTransferCandidates(playerId, limit): return ranked replacements after C# enforces squad, bank, price, position, projection, and three-player club constraints."
             });
 
         return new SessionConfig

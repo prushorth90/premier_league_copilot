@@ -12,9 +12,9 @@ public interface IFplCoachFactService
         int gameweeks,
         CancellationToken cancellationToken);
 
-    Task<string> GetTransferOptionsAsync(
+    Task<PlayerReplacementResult> GetTransferCandidatesAsync(
         FplCoachContext context,
-        string playerName,
+        int playerId,
         int limit,
         CancellationToken cancellationToken);
 }

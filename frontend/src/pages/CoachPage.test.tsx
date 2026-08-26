@@ -47,6 +47,23 @@ describe('CoachPage', () => {
         source: 'Official FPL bootstrap data',
       },
       fixtures: null,
+      transfers: {
+        playerOut: { playerId: 10, playerName: 'Saka', teamName: 'Arsenal', position: 'MID', price: 10 },
+        bank: 0.5,
+        maximumPurchasePrice: 10.5,
+        projectionGameweeks: 5,
+        candidates: [{
+          rank: 1,
+          player: { playerId: 20, playerName: 'Palmer', teamName: 'Chelsea', position: 'MID', price: 9.5 },
+          priceDifference: -0.5,
+          playerOutProjectedPoints: 25,
+          candidateProjectedPoints: 33,
+          projectedPointDifference: 8,
+          confidence: 80,
+          reason: 'Adds eight projected points over five gameweeks.',
+        }],
+        source: 'Touchline transfer recommendation engine',
+      },
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -63,6 +80,10 @@ describe('CoachPage', () => {
     expect(screen.getByText('Doubtful')).toBeTruthy()
     expect(screen.getByText('12 Sep')).toBeTruthy()
     expect(screen.getByText('85%')).toBeTruthy()
+    expect(screen.getByText('Palmer · Chelsea · MID')).toBeTruthy()
+    expect(screen.getByText('+8.00 pts')).toBeTruthy()
+    expect(screen.getByText('-£0.5m', { exact: false })).toBeTruthy()
+    expect(screen.getByText('Bank £0.5m · Max £10.5m')).toBeTruthy()
   })
 
   it('shows a pending assistant state while waiting', async () => {
@@ -77,7 +98,7 @@ describe('CoachPage', () => {
     expect(screen.getByText('Coach is thinking')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Send message' }) as HTMLButtonElement).disabled).toBe(true)
 
-    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null })
+    resolveResponse({ message: 'Noted.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'Availability', confidence: 78, player: null, availability: null, fixtures: null, transfers: null })
     expect(await screen.findByText('Noted.')).toBeTruthy()
   })
 
@@ -104,6 +125,7 @@ describe('CoachPage', () => {
         explanation: 'Saka has a favorable upcoming schedule.',
         source: 'Official FPL element-summary and bootstrap data',
       },
+      transfers: null,
     })
     const user = userEvent.setup()
     render(<CoachPage />)
@@ -121,7 +143,7 @@ describe('CoachPage', () => {
   it('shows an error and retries without duplicating the user message', async () => {
     coachApiMock.sendCoachMessage
       .mockRejectedValueOnce(new ApiError('Mock coach outage.', 503))
-      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null })
+      .mockResolvedValueOnce({ message: 'Recovered reply.', teamId: 7558250, respondedAt: '2026-08-26T12:00:00Z', isMocked: false, recommendationType: 'General', confidence: 35, player: null, availability: null, fixtures: null, transfers: null })
     const user = userEvent.setup()
     render(<CoachPage />)
 

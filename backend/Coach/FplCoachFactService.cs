@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Backend.Coach.Models;
 using Backend.Recommendation.Transfer;
 using Backend.Services;
@@ -10,8 +9,6 @@ public sealed class FplCoachFactService(
     IFplDataService fplDataService,
     ITransferRecommendationService transferRecommendationService) : IFplCoachFactService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     public PlayerAvailabilityResult GetPlayerAvailability(FplCoachContext context, int playerId)
     {
         var player = context.Squad.SingleOrDefault(item => item.PlayerId == playerId)
@@ -85,76 +82,66 @@ public sealed class FplCoachFactService(
             "Official FPL element-summary and bootstrap data");
     }
 
-    public async Task<string> GetTransferOptionsAsync(
+    public async Task<PlayerReplacementResult> GetTransferCandidatesAsync(
         FplCoachContext context,
-        string playerName,
+        int playerId,
         int limit,
         CancellationToken cancellationToken)
     {
-        var player = FindOwnedPlayer(context, playerName);
-        if (player is null)
-        {
-            return NotFound(playerName);
-        }
+        var player = context.Squad.SingleOrDefault(item => item.PlayerId == playerId)
+            ?? throw new KeyNotFoundException($"Player {playerId} was not found in the connected 15-player squad.");
+        var requestedLimit = Math.Clamp(limit, 1, 5);
 
-        var recommendations = await transferRecommendationService.GetRecommendationsAsync(
+        var recommendations = await transferRecommendationService.GetReplacementRecommendationsAsync(
             context.TeamId,
-            Math.Clamp(limit, 1, 10),
-            cancellationToken);
-        var options = recommendations.Recommendations
-            .Where(item => item.PlayerOut.PlayerId == player.PlayerId)
-            .Take(Math.Clamp(limit, 1, 10))
-            .Select(item => new
-            {
-                PlayerOut = item.PlayerOut,
-                PlayerIn = item.PlayerIn,
-                item.PriceDifference,
-                item.ExpectedPointGains,
-                item.ConfidenceScore,
-                item.Explanations
-            })
-            .ToArray();
-
-        return Serialize(new
-        {
             player.PlayerId,
-            player.PlayerName,
-            context.Bank,
-            options,
-            source = "Touchline transfer recommendation engine"
-        });
-    }
-
-    private static FplCoachSquadPlayer? FindOwnedPlayer(FplCoachContext context, string playerName)
-    {
-        var search = playerName.Trim();
-        if (search.Length == 0)
-        {
-            return null;
-        }
-
-        var exact = context.Squad.FirstOrDefault(player =>
-            player.PlayerName.Equals(search, StringComparison.OrdinalIgnoreCase));
-        if (exact is not null)
-        {
-            return exact;
-        }
-
-        var partialMatches = context.Squad
-            .Where(player =>
-                player.PlayerName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
-                search.Contains(player.PlayerName, StringComparison.OrdinalIgnoreCase))
-            .Take(2)
+            requestedLimit,
+            cancellationToken);
+        var playerRecommendations = recommendations.Recommendations
+            .Where(item => item.PlayerOut.PlayerId == player.PlayerId)
             .ToArray();
-        return partialMatches.Length == 1 ? partialMatches[0] : null;
+        var candidates = playerRecommendations
+            .Take(requestedLimit)
+            .Select((item, index) => MapCandidate(item, index + 1))
+            .ToArray();
+        var salePrice = recommendations.SelectedPlayerSellingPrice
+            ?? playerRecommendations.FirstOrDefault()?.PlayerOut.Price
+            ?? player.Price;
+        var maximumPurchasePrice = salePrice + recommendations.Bank;
+
+        return new PlayerReplacementResult(
+            new CoachTransferPlayer(player.PlayerId, player.PlayerName, player.TeamName, player.Position, salePrice),
+            recommendations.Bank,
+            maximumPurchasePrice,
+            5,
+            candidates,
+            "Touchline transfer recommendation engine; FPL budget, position, ownership, availability, expected-minutes, and three-player club rules enforced in C#");
     }
 
-    private static string NotFound(string playerName) => Serialize(new
+    private static CoachReplacementCandidate MapCandidate(
+        Backend.Recommendation.Transfer.Models.TransferRecommendation recommendation,
+        int rank)
     {
-        error = $"Player '{playerName}' was not found in the connected 15-player squad. Do not infer facts for this player."
-    });
-
-    private static string Serialize<T>(T value) => JsonSerializer.Serialize(value, SerializerOptions);
+        var gain = recommendation.ExpectedPointGains.Single(item => item.Gameweeks == 5);
+        var reason = recommendation.Explanations
+            .Where(item => item.Factor is "Expected points" or "Fixture quality" or "Budget")
+            .Select(item => item.Explanation)
+            .FirstOrDefault() ?? "Higher deterministic projected points over the next five gameweeks.";
+        return new CoachReplacementCandidate(
+            rank,
+            new CoachTransferPlayer(
+                recommendation.PlayerIn.PlayerId,
+                recommendation.PlayerIn.PlayerName,
+                recommendation.PlayerIn.TeamName,
+                recommendation.PlayerIn.Position,
+                recommendation.PlayerIn.Price),
+            recommendation.PriceDifference,
+            gain.PlayerOutPoints,
+            gain.PlayerInPoints,
+            gain.ExpectedPointGain,
+            recommendation.ConfidenceScore,
+            reason);
+    }
 
     private static (string Description, bool IsAvailable, decimal Confidence) DescribeStatus(FplCoachSquadPlayer player) =>
         player.Status switch

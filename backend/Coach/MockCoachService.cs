@@ -51,7 +51,12 @@ public sealed class CopilotCoachService(
                 GetRequestedGameweeks(normalizedMessage),
                 cancellationToken)
             : null;
-        var confidence = availability?.Confidence ?? GetConfidence(recommendationType, matchedPlayer);
+        var transfers = recommendationType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement && matchedPlayer is not null
+            ? await factService.GetTransferCandidatesAsync(context, matchedPlayer.Id, 3, cancellationToken)
+            : null;
+        var confidence = availability?.Confidence
+            ?? transfers?.Candidates.FirstOrDefault()?.Confidence
+            ?? GetConfidence(recommendationType, matchedPlayer);
         var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, cancellationToken);
         reply = EnsureAvailabilityClaimIsGrounded(reply, availability);
 
@@ -64,7 +69,8 @@ public sealed class CopilotCoachService(
             confidence,
             playerInfo,
             availability,
-            fixtures);
+            fixtures,
+            transfers);
     }
 
     private static string EnsureAvailabilityClaimIsGrounded(

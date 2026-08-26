@@ -32,6 +32,26 @@ public class TransferRecommendationServiceTests
         Assert.DoesNotContain(103, dataService.RequestedHistoryIds);
     }
 
+    [Fact]
+    public async Task GetReplacementRecommendationsAsyncRanksOnlyRequestedOwnedPlayer()
+    {
+        var service = new TransferRecommendationService(
+            new StubFplDataService(),
+            new StubProjectionCalculator(),
+            new TransferRecommendationEngine(),
+            TimeProvider.System);
+
+        var result = await service.GetReplacementRecommendationsAsync(42, 3, 3, CancellationToken.None);
+
+        Assert.Equal(0.5m, result.Bank);
+        Assert.Equal(5m, result.SelectedPlayerSellingPrice);
+        var recommendation = Assert.Single(result.Recommendations);
+        Assert.Equal(3, recommendation.PlayerOut.PlayerId);
+        Assert.Equal(101, recommendation.PlayerIn.PlayerId);
+        Assert.Equal("DEF", recommendation.PlayerIn.Position);
+        Assert.Empty(result.Combinations);
+    }
+
     [Theory]
     [InlineData(0, 10)]
     [InlineData(42, 0)]

@@ -23,6 +23,7 @@ describe('sendCoachMessage', () => {
       },
       availability: null,
       fixtures: null,
+      transfers: null,
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), {
       status: 200,

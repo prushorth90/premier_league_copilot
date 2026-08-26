@@ -10,6 +10,13 @@ public interface ITransferRecommendationEngine
         int bank,
         int limit = 20);
 
+    IReadOnlyList<TransferRecommendation> RankReplacements(
+        IReadOnlyList<TransferPlayerContext> squad,
+        IReadOnlyList<TransferPlayerContext> market,
+        int bank,
+        int playerOutId,
+        int limit = 5);
+
     IReadOnlyList<TransferCombinationRecommendation> RankCombinations(
         IReadOnlyList<TransferPlayerContext> squad,
         IReadOnlyList<TransferPlayerContext> market,

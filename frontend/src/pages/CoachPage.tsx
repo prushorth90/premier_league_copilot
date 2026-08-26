@@ -1,4 +1,4 @@
-import { AlertCircle, Bot, CalendarDays, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { AlertCircle, ArrowRightLeft, Bot, CalendarDays, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { sendCoachMessage } from '../api/coachApi'
 import { ApiError } from '../api/fplApi'
@@ -53,6 +53,7 @@ export function CoachPage() {
         player: response.player,
         availability: response.availability,
         fixtures: response.fixtures,
+        transfers: response.transfers,
       }])
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
@@ -173,6 +174,30 @@ function ChatBubble({ message }: { message: CoachChatMessage }) {
             </div>
           </div>
         )}
+        {message.transfers && (
+          <div className="mt-3 border-t border-black/8 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+              <span className="inline-flex items-center gap-1.5 font-bold uppercase text-black/45"><ArrowRightLeft size={13} /> Ranked replacements</span>
+              <span className="font-bold text-[#287c50]">Bank £{message.transfers.bank.toFixed(1)}m · Max £{message.transfers.maximumPurchasePrice.toFixed(1)}m</span>
+            </div>
+            <ol className="mt-2 divide-y divide-black/8 border-y border-black/8">
+              {message.transfers.candidates.map((candidate) => (
+                <li key={candidate.player.playerId} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2 py-2.5 text-[10px]">
+                  <span className="font-bold text-black/35">{candidate.rank}</span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="font-bold">{candidate.player.playerName} · {candidate.player.teamName} · {candidate.player.position}</span>
+                      <span className="font-bold text-[#287c50]">{formatSigned(candidate.projectedPointDifference)} pts</span>
+                    </div>
+                    <p className="mt-0.5 text-black/45">£{candidate.player.price.toFixed(1)}m · {formatSignedCurrency(candidate.priceDifference)} · {candidate.confidence.toFixed(0)}% confidence</p>
+                    <p className="mt-1 leading-4 text-black/65">{candidate.reason}</p>
+                  </div>
+                </li>
+              ))}
+              {message.transfers.candidates.length === 0 && <li className="py-2 text-[10px] text-black/45">No valid improving replacements found.</li>}
+            </ol>
+          </div>
+        )}
         {(message.isMocked || message.recommendationType) && <div className="mt-2 flex flex-wrap gap-2 text-[9px] font-bold uppercase text-[#287c50]">{message.isMocked && <span>Mocked response</span>}{message.recommendationType && <span>{message.recommendationType}</span>}{message.confidence !== undefined && <span>{message.confidence.toFixed(0)}% confidence</span>}</div>}
       </div>
     </div>
@@ -197,4 +222,12 @@ function createId() {
 
 function formatScore(score: number | null) {
   return score === null ? 'N/A' : score.toFixed(2)
+}
+
+function formatSigned(value: number) {
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}`
+}
+
+function formatSignedCurrency(value: number) {
+  return `${value > 0 ? '+' : value < 0 ? '-' : ''}£${Math.abs(value).toFixed(1)}m`
 }

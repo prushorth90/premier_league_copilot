@@ -29,7 +29,10 @@ public class FplCoachAgentTests
         Assert.Equal([FplCoachAgents.FixturesTool], fixture.Tools);
         Assert.Contains("Do not recommend", fixture.Prompt);
         var transfer = Assert.Single(agents, agent => agent.Name == FplCoachAgents.TransferSpecialistName);
+        Assert.Equal("TransferAgent", transfer.Name);
         Assert.Equal([FplCoachAgents.TransfersTool], transfer.Tools);
+        Assert.Contains("maximum-three-per-club", transfer.Prompt);
+        Assert.Contains("projected-point difference", transfer.Prompt);
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public class FplCoachAgentTests
         var context = CreateContext();
 
         var fixtures = await service.GetUpcomingFixturesAsync(context, 10, 3, CancellationToken.None);
-        var transfers = await service.GetTransferOptionsAsync(context, "Saka", 3, CancellationToken.None);
+        var transfers = await service.GetTransferCandidatesAsync(context, 10, 3, CancellationToken.None);
 
         Assert.Equal("Official FPL element-summary and bootstrap data", fixtures.Source);
         Assert.Equal(3, fixtures.RequestedGameweeks);
@@ -97,10 +100,23 @@ public class FplCoachAgentTests
         Assert.Equal(4m, fixtures.AggregateScore);
         Assert.Equal("Favorable", fixtures.ScheduleRating);
         Assert.Contains("favorable", fixtures.Explanation, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Touchline transfer recommendation engine", transfers);
-        Assert.Contains("Replacement", transfers);
+        Assert.Equal("Saka", transfers.PlayerOut.PlayerName);
+        Assert.Equal("MID", transfers.PlayerOut.Position);
+        Assert.Equal(10.5m, transfers.MaximumPurchasePrice);
+        Assert.Equal(0.5m, transfers.Bank);
+        Assert.Equal(5, transfers.ProjectionGameweeks);
+        var candidate = Assert.Single(transfers.Candidates);
+        Assert.Equal(1, candidate.Rank);
+        Assert.Equal("Replacement", candidate.Player.PlayerName);
+        Assert.Equal("MID", candidate.Player.Position);
+        Assert.Equal(-1m, candidate.PriceDifference);
+        Assert.Equal(25m, candidate.PlayerOutProjectedPoints);
+        Assert.Equal(35m, candidate.CandidateProjectedPoints);
+        Assert.Equal(10m, candidate.ProjectedPointDifference);
+        Assert.Contains("Touchline transfer recommendation engine", transfers.Source);
+        Assert.Contains("three-player club rules enforced in C#", transfers.Source);
         Assert.Equal(10, dataService.RequestedPlayerId);
-        Assert.Equal((42, 3), transferService.Request);
+        Assert.Equal((42, 10, 3), transferService.ReplacementRequest);
     }
 
     [Theory]
@@ -206,10 +222,22 @@ public class FplCoachAgentTests
     private sealed class StubTransferService : ITransferRecommendationService
     {
         public (int TeamId, int Limit)? Request { get; private set; }
+        public (int TeamId, int PlayerOutId, int Limit)? ReplacementRequest { get; private set; }
 
         public Task<TransferRecommendationResponse> GetRecommendationsAsync(int teamId, int limit, CancellationToken cancellationToken)
         {
             Request = (teamId, limit);
+            return CreateResponse(teamId);
+        }
+
+        public Task<TransferRecommendationResponse> GetReplacementRecommendationsAsync(int teamId, int playerOutId, int limit, CancellationToken cancellationToken)
+        {
+            ReplacementRequest = (teamId, playerOutId, limit);
+            return CreateResponse(teamId);
+        }
+
+        private static Task<TransferRecommendationResponse> CreateResponse(int teamId)
+        {
             var outgoing = new TransferPlayer(10, "Saka", "Arsenal", "MID", 10m, "d", 70m, []);
             var incoming = new TransferPlayer(20, "Replacement", "Chelsea", "MID", 9m, "a", 85m, []);
             var recommendation = new TransferRecommendation(

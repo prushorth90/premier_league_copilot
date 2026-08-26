@@ -74,6 +74,68 @@ public sealed class TransferRecommendationService(
             combinations);
     }
 
+    public async Task<TransferRecommendationResponse> GetReplacementRecommendationsAsync(
+        int teamId,
+        int playerOutId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        if (teamId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(teamId), "The team ID must be positive.");
+        }
+
+        if (playerOutId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(playerOutId), "The outgoing player ID must be positive.");
+        }
+
+        if (limit is < 1 or > 5)
+        {
+            throw new ArgumentOutOfRangeException(nameof(limit), "The replacement limit must be between 1 and 5.");
+        }
+
+        var managerTask = fplDataService.GetManagerAsync(teamId, cancellationToken);
+        var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
+        await Task.WhenAll(managerTask, bootstrapTask);
+        var manager = await managerTask;
+        var bootstrap = await bootstrapTask;
+        var squad = await fplDataService.GetManagerPicksAsync(teamId, manager.CurrentGameweek, cancellationToken);
+        var players = bootstrap.Players.ToDictionary(player => player.Id);
+        var teams = bootstrap.Teams.ToDictionary(team => team.Id);
+        var positions = bootstrap.PlayerPositions.ToDictionary(position => position.Id);
+        var squadPlayers = squad.Picks.Select(pick => players.GetValueOrDefault(pick.PlayerId)
+            ?? throw new KeyNotFoundException($"FPL player {pick.PlayerId} was not found.")).ToArray();
+        if (squadPlayers.All(player => player.Id != playerOutId))
+        {
+            throw new KeyNotFoundException($"Player {playerOutId} was not found in the connected 15-player squad.");
+        }
+
+        var playerOut = squadPlayers.Single(player => player.Id == playerOutId);
+        var ownedIds = squadPlayers.Select(player => player.Id).ToHashSet();
+        var salePrice = squad.Picks.Single(pick => pick.PlayerId == playerOutId).SellingPrice ?? playerOut.Price;
+        var market = bootstrap.Players
+            .Where(player => !ownedIds.Contains(player.Id))
+            .Where(player => player.PositionId == playerOut.PositionId)
+            .Where(player => player.Status is "a" or "d")
+            .Where(player => player.Price <= salePrice + manager.Bank)
+            .ToArray();
+        var contexts = await ProjectPlayersAsync(squadPlayers.Concat(market), teams, positions, cancellationToken);
+        var contextsById = contexts.ToDictionary(context => context.Player.Id);
+        var squadContexts = squad.Picks.Select(pick => contextsById[pick.PlayerId] with { SellingPrice = pick.SellingPrice }).ToArray();
+        var marketContexts = market.Select(player => contextsById[player.Id]).ToArray();
+        var recommendations = recommendationEngine.RankReplacements(squadContexts, marketContexts, manager.Bank, playerOutId, limit);
+
+        return new(
+            teamId,
+            manager.CurrentGameweek,
+            timeProvider.GetUtcNow(),
+            manager.Bank / 10m,
+            recommendations,
+            [],
+            salePrice / 10m);
+    }
+
     private async Task<IReadOnlyList<TransferPlayerContext>> ProjectPlayersAsync(
         IEnumerable<Player> players,
         IReadOnlyDictionary<int, Team> teams,

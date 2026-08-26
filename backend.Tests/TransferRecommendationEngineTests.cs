@@ -76,6 +76,34 @@ public class TransferRecommendationEngineTests
     }
 
     [Fact]
+    public void RankReplacementsEnforcesBudgetPositionAndThreePlayerClubLimitForSelectedPlayer()
+    {
+        var squad = CreateValidSquad();
+        var market = new[]
+        {
+            CreateContext(101, 6, 2, 55, 10m, 30m, 50m),
+            CreateContext(102, 6, 2, 56, 10m, 30m, 50m),
+            CreateContext(103, 1, 2, 55, 10m, 30m, 50m),
+            CreateContext(104, 6, 3, 55, 10m, 30m, 50m)
+        };
+
+        var result = engine.RankReplacements(squad, market, bank: 5, playerOutId: 4);
+
+        var recommendation = Assert.Single(result);
+        Assert.Equal(4, recommendation.PlayerOut.PlayerId);
+        Assert.Equal(101, recommendation.PlayerIn.PlayerId);
+        Assert.Equal(recommendation.PlayerOut.Position, recommendation.PlayerIn.Position);
+        Assert.Equal(0.5m, recommendation.PriceDifference);
+    }
+
+    [Fact]
+    public void RankReplacementsRejectsPlayerOutsideActualSquad()
+    {
+        Assert.Throws<KeyNotFoundException>(() =>
+            engine.RankReplacements(CreateValidSquad(), [], bank: 0, playerOutId: 999));
+    }
+
+    [Fact]
     public void RankAllowsDoubtfulPlayerAndReducesConfidence()
     {
         var squad = CreateValidSquad();

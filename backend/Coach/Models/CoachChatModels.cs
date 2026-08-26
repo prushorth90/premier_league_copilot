@@ -13,7 +13,8 @@ public sealed record CoachChatResponse(
     decimal Confidence,
     CoachPlayerInfo? Player,
     PlayerAvailabilityResult? Availability = null,
-    PlayerFixtureWindowResult? Fixtures = null);
+    PlayerFixtureWindowResult? Fixtures = null,
+    PlayerReplacementResult? Transfers = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter<CoachRecommendationType>))]
 public enum CoachRecommendationType

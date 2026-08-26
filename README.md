@@ -197,13 +197,15 @@ The backend validates the request, loads the public manager record, current-game
 
 - `InjuryAgent` calls only `get_player_availability(playerId)`, which returns structured official FPL bootstrap availability for that owned player.
 - `FixtureAgent` calls only `get_upcoming_fixtures(playerId, gameweeks)`, which returns the owned player's next 1 to 5 distinct gameweeks from official element-summary fixture data.
-- `TransferSpecialistAgent` calls `get_transfer_recommendations`, which returns only budget-, position-, and club-valid options from the existing transfer engine.
+- `TransferAgent` calls only `get_transfer_candidates(playerId, limit)`, which returns a small ranked set of replacements for an owned player from the actual connected squad.
 
 The parent can delegate but cannot call fact tools directly. Each specialist has an exclusive tool allowlist, unknown player IDs fail closed, and no shell, file, web, or MCP tools are exposed. Agent prompts explicitly prohibit inventing injuries, fixtures, prices, budgets, or projected scores.
 
 `InjuryAgent` returns player identity, raw and described FPL status, chance of playing when supplied, expected return when the official FPL news text contains an `Expected back ...` phrase, confidence, evidence, and source. It treats only FPL status `i` as confirmation of an injury; `d` means doubtful and `a` means available. If the user's injury claim is unsupported, the backend guarantees the final response begins with `Official FPL data does not confirm that <player> is injured` and reports the actual status.
 
 `FixtureAgent` returns each fixture's opponent, home or away status, and official 1-5 FPL difficulty. Double gameweeks retain every fixture in the requested distinct-gameweek window. C# calculates the average difficulty and an aggregate score as `6 - average FPL difficulty`, where a higher score means an easier schedule. Average difficulty up to 2.5 is `Favorable`, up to 3.5 is `Mixed`, and anything higher is `Difficult`. The agent explains that schedule assessment but is explicitly prohibited from making transfer decisions.
+
+`TransferAgent` resolves the outgoing player by numeric ID from the typed 15-player context. Its backend tool retrieves the current squad, bank, actual selling value, market prices and positions, and deterministic 1/3/5-gameweek projections. Before candidates are returned, C# rejects owned, unavailable, low-minutes, wrong-position, over-budget, and fourth-player-from-one-club options. The response contains up to five ranked candidates with price difference, five-gameweek projected points for both players, projected-point difference, confidence, and a short engine-supplied reason. Copilot cannot add candidates or relax these rules.
 
 The strongly typed response includes the final message, recommendation type (`General`, `Availability`, `Fixture`, `Transfer`, or `Replacement`), a 0-100 confidence score, optional matched-player details, and structured availability or fixture analysis when applicable:
 

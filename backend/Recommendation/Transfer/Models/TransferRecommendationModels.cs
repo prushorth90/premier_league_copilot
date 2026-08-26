@@ -9,7 +9,8 @@ public sealed record TransferRecommendationResponse(
     DateTimeOffset CalculatedAt,
     decimal Bank,
     IReadOnlyList<TransferRecommendation> Recommendations,
-    IReadOnlyList<TransferCombinationRecommendation> Combinations);
+    IReadOnlyList<TransferCombinationRecommendation> Combinations,
+    decimal? SelectedPlayerSellingPrice = null);
 
 public sealed record TransferCombinationRecommendation(
     IReadOnlyList<TransferRecommendation> Transfers,
