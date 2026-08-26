@@ -228,6 +228,20 @@ To keep combination search interactive, the engine retains each outgoing player'
 
 Transport DTOs are mapped to application models before data leaves the service. Redis caches bootstrap data for 60 minutes, fixtures for 15 minutes, manager and squad data for 5 minutes, and player history for 30 minutes by default. Cache failures fall back to the upstream API, while upstream failures are logged and returned through centralized exception handling as `502 Bad Gateway` responses.
 
+All FPL cache keys and expirations are defined by `IFplCachePolicyProvider`. Keys are namespaced and schema-versioned so contract changes can invalidate only the affected resource:
+
+| Resource | Default expiration | Relative volatility |
+| --- | ---: | --- |
+| Bootstrap player/team catalogue | 60 minutes | Long-lived reference and player catalogue data |
+| Player fixture/history summary | 30 minutes | Player-specific projections and recent history |
+| Fixtures | 15 minutes | Scores, kickoff state, and gameweek scheduling |
+| Manager summary | 5 minutes | Frequently changing entry totals and bank |
+| Manager gameweek picks | 5 minutes | Frequently changing squad and gameweek state |
+
+The cache coordinator uses an in-process memory cache as L1 and Redis as L2. On a miss, concurrent requests for the same key share one upstream FPL task, preventing Dashboard, Transfers, and Recommendations queries from causing duplicate public API calls. Caller cancellation stops only that caller from waiting and does not cancel shared work needed by other requests.
+
+Redis reads, writes, connection failures, and malformed cached JSON fail open. Successful upstream responses remain in the local memory fallback for the same policy duration, so a temporary Redis outage does not make the application unavailable or repeatedly hit the FPL API.
+
 ### FPL REST API
 
 The React frontend uses the backend endpoints below and never communicates with the public FPL API directly. In these routes, `teamId` is the public FPL entry ID.

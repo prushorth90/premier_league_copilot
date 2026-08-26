@@ -1,99 +1,50 @@
-using System.Text.Json;
 using System.Globalization;
-using Backend.Configuration;
 using Backend.ExternalClients;
 using Backend.Models;
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Options;
+using Backend.Services.Caching;
 
 namespace Backend.Services;
 
 public sealed class FplDataService(
     IFplApiClient fplApiClient,
-    IDistributedCache cache,
-    IOptions<FplApiOptions> options,
-    ILogger<FplDataService> logger) : IFplDataService
+    IFplCacheCoordinator cache,
+    IFplCachePolicyProvider cachePolicies) : IFplDataService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-    private readonly FplApiOptions fplOptions = options.Value;
-
     public Task<BootstrapData> GetBootstrapDataAsync(CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            "bootstrap-static:v3",
-            TimeSpan.FromMinutes(fplOptions.BootstrapCacheMinutes),
+            cachePolicies.Bootstrap,
             async token => Map(await fplApiClient.GetBootstrapStaticAsync(token)),
             cancellationToken);
 
     public Task<IReadOnlyList<Fixture>> GetFixturesAsync(CancellationToken cancellationToken) =>
         GetOrCreateAsync<IReadOnlyList<Fixture>>(
-            "fixtures",
-            TimeSpan.FromMinutes(fplOptions.FixturesCacheMinutes),
+            cachePolicies.Fixtures,
             async token => (await fplApiClient.GetFixturesAsync(token)).Select(Map).ToArray(),
             cancellationToken);
 
     public Task<Manager> GetManagerAsync(int managerId, CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            $"manager:{managerId}",
-            TimeSpan.FromMinutes(fplOptions.ManagerCacheMinutes),
+            cachePolicies.Manager(managerId),
             async token => Map(await fplApiClient.GetManagerAsync(managerId, token)),
             cancellationToken);
 
     public Task<Squad> GetManagerPicksAsync(int managerId, int gameweek, CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            $"manager:{managerId}:gameweek:{gameweek}:picks:v2",
-            TimeSpan.FromMinutes(fplOptions.SquadCacheMinutes),
+            cachePolicies.ManagerPicks(managerId, gameweek),
             async token => Map(await fplApiClient.GetManagerPicksAsync(managerId, gameweek, token)),
             cancellationToken);
 
     public Task<PlayerHistory> GetPlayerHistoryAsync(int playerId, CancellationToken cancellationToken) =>
         GetOrCreateAsync(
-            $"player:{playerId}:history",
-            TimeSpan.FromMinutes(fplOptions.PlayerHistoryCacheMinutes),
+            cachePolicies.PlayerHistory(playerId),
             async token => Map(await fplApiClient.GetPlayerSummaryAsync(playerId, token)),
             cancellationToken);
 
     private async Task<T> GetOrCreateAsync<T>(
-        string cacheKey,
-        TimeSpan cacheDuration,
+        FplCachePolicy policy,
         Func<CancellationToken, Task<T>> factory,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var cachedJson = await cache.GetStringAsync(cacheKey, cancellationToken);
-            if (cachedJson is not null)
-            {
-                var cachedValue = JsonSerializer.Deserialize<T>(cachedJson, SerializerOptions);
-                if (cachedValue is not null)
-                {
-                    logger.LogDebug("FPL cache hit for {CacheKey}", cacheKey);
-                    return cachedValue;
-                }
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Unable to read FPL cache key {CacheKey}; requesting upstream data", cacheKey);
-        }
-
-        logger.LogDebug("FPL cache miss for {CacheKey}", cacheKey);
-        var value = await factory(cancellationToken);
-
-        try
-        {
-            await cache.SetStringAsync(
-                cacheKey,
-                JsonSerializer.Serialize(value, SerializerOptions),
-                new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = cacheDuration },
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Unable to write FPL cache key {CacheKey}", cacheKey);
-        }
-
-        return value;
-    }
+        CancellationToken cancellationToken) =>
+        await cache.GetOrCreateAsync(policy, factory, cancellationToken);
 
     private static BootstrapData Map(FplBootstrapDto source) => new(
         source.Events.Select(item => new Gameweek(item.Id, item.Name, item.DeadlineTime, item.Finished, item.IsCurrent, item.IsNext, item.AverageEntryScore, item.HighestScore)).ToArray(),
