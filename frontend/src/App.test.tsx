@@ -12,8 +12,15 @@ function renderRoute(path: string) {
 }
 
 describe('App routing', () => {
-  it('renders the home page', () => {
-    expect(renderRoute('/')).toContain('Make every transfer count.')
+  it.each([
+    ['/', 'Good morning, manager.'],
+    ['/team', 'My Team'],
+    ['/transfers', 'Transfers'],
+    ['/players', 'Players'],
+    ['/fixtures', 'Fixtures'],
+    ['/recommendations', 'Recommendations'],
+  ])('renders %s', (path, heading) => {
+    expect(renderRoute(path)).toContain(heading)
   })
 
   it('renders the not-found page for an unknown route', () => {
