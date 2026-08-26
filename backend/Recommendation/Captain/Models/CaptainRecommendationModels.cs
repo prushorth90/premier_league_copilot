@@ -18,7 +18,8 @@ public sealed record CaptainCandidate(
     string Position,
     decimal ProjectedPoints,
     decimal RankingScore,
-    IReadOnlyList<CaptainFactorBreakdown> Factors);
+    IReadOnlyList<CaptainFactorBreakdown> Factors,
+    string PhotoUrl = PlayerPhotoUrl.Fallback);
 
 public sealed record CaptainFactorBreakdown(
     string Factor,

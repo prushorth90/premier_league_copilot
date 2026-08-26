@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { Card } from '../components/ui/Card'
 import { EmptyState, ErrorState, LoadingSkeleton } from '../components/ui/States'
 import { PageHeader } from '../components/ui/PageHeader'
+import { PlayerHeadshot } from '../components/player/PlayerHeadshot'
 import { combinationGainForHorizon, sortTransferCombinations, sortTransferRecommendations, type RecommendationHorizon } from '../features/transfers/transferSelectors'
 import type { TransferCombinationRecommendation, TransferHorizonGain, TransferPlayer, TransferRecommendation } from '../models/fpl'
 import { useFplTeamQuery, useTransferRecommendationsQuery } from '../queries/fplQueries'
@@ -136,7 +137,7 @@ function RecommendationHeader({ rank, confidence, priceDifference, combination =
 }
 
 function PlayerSummary({ player, role, tone, align = 'left' }: { player: TransferPlayer; role: string; tone: string; align?: 'left' | 'right' }) {
-  return <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}><span className={`inline-block px-2 py-1 text-[9px] font-bold uppercase ${tone}`}>{role} · {player.position}</span><p className="mt-2 truncate text-sm font-bold" title={player.playerName}>{player.playerName}</p><p className="mt-1 truncate text-[10px] text-black/45">{player.teamName} · £{player.price.toFixed(1)}m</p></div>
+  return <div className={`flex min-w-0 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}><div className="grid h-16 w-12 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={player.photoUrl} playerName={player.playerName} className="h-full w-auto" /></div><div className="min-w-0"><span className={`inline-block px-2 py-1 text-[9px] font-bold uppercase ${tone}`}>{role} · {player.position}</span><p className="mt-2 truncate text-sm font-bold" title={player.playerName}>{player.playerName}</p><p className="mt-1 truncate text-[10px] text-black/45">{player.teamName} · £{player.price.toFixed(1)}m</p></div></div>
 }
 
 function Fixtures({ player, compact = false }: { player: TransferPlayer; compact?: boolean }) {

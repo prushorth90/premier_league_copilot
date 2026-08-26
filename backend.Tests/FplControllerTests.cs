@@ -71,6 +71,7 @@ public class FplControllerTests
         Assert.Equal(5.5m, pick.Price);
         Assert.Equal(5, pick.GameweekPoints);
         Assert.Equal("CHE (H)", pick.NextOpponent);
+        Assert.Equal("https://resources.premierleague.com/premierleague/photos/players/110x140/p100.png", pick.PhotoUrl);
     }
 
     [Fact]
@@ -93,6 +94,7 @@ public class FplControllerTests
         Assert.Equal(6.5m, player.Form);
         Assert.Equal(12.3m, player.OwnershipPercentage);
         Assert.Equal("CHE (H)", player.UpcomingFixture);
+        Assert.Equal("https://resources.premierleague.com/premierleague/photos/players/110x140/p100.png", player.PhotoUrl);
     }
 
     [Fact]

@@ -2,6 +2,7 @@ import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, Clock3, Crown, RefreshCw,
 import { Card, CardHeader } from '../components/ui/Card'
 import { EmptyState, ErrorState, LoadingSkeleton } from '../components/ui/States'
 import { PageHeader } from '../components/ui/PageHeader'
+import { PlayerHeadshot } from '../components/player/PlayerHeadshot'
 import { getSquadProjection, selectSellCandidates, type SellCandidate } from '../features/recommendations/recommendationSelectors'
 import type { CaptainCandidate, LineupPlayer, TransferCombinationRecommendation, TransferRecommendation } from '../models/fpl'
 import { useCaptainRecommendationQuery, useLineupRecommendationQuery, useTransferRecommendationsQuery } from '../queries/fplQueries'
@@ -128,8 +129,9 @@ export function RecommendationsPage() {
           ) : (
             <div className="divide-y divide-black/8">
               {recommendation.alternatives.map((candidate, index) => (
-                <article key={candidate.playerId} className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 px-5 py-4">
+                <article key={candidate.playerId} className="grid grid-cols-[2rem_3rem_1fr_auto] items-center gap-3 px-5 py-4">
                   <span className="font-display text-xl font-bold text-black/20">{index + 3}</span>
+                  <div className="grid h-14 w-11 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={candidate.photoUrl} playerName={candidate.playerName} className="h-full w-auto" /></div>
                   <div className="min-w-0"><h3 className="truncate text-sm font-bold">{candidate.playerName}</h3><p className="mt-1 text-xs text-black/45">{candidate.teamName} · {candidate.position}</p></div>
                   <div className="text-right"><p className="font-display text-xl font-bold">{candidate.projectedPoints.toFixed(2)}</p><p className="text-[9px] font-bold uppercase text-black/35">projected</p></div>
                 </article>
@@ -156,7 +158,7 @@ function LineupRow({ position, players }: { position: string; players: LineupPla
 function LineupPlayerCell({ player }: { player: LineupPlayer }) {
   return (
     <div className="flex min-h-24 items-center justify-between gap-3 bg-white p-4">
-      <div className="min-w-0"><p className="truncate text-sm font-bold">{player.playerName}</p><p className="mt-1 truncate text-xs text-black/45">{player.teamName}</p><p className="mt-2 flex items-center gap-1 text-[10px] text-black/40"><Clock3 size={12} /> {player.expectedMinutes.toFixed(0)} min</p></div>
+      <div className="flex min-w-0 items-center gap-3"><div className="grid h-16 w-12 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={player.photoUrl} playerName={player.playerName} className="h-full w-auto" /></div><div className="min-w-0"><p className="truncate text-sm font-bold">{player.playerName}</p><p className="mt-1 truncate text-xs text-black/45">{player.teamName}</p><p className="mt-2 flex items-center gap-1 text-[10px] text-black/40"><Clock3 size={12} /> {player.expectedMinutes.toFixed(0)} min</p></div></div>
       <div className="text-right"><p className="font-display text-xl font-bold">{player.projectedPoints.toFixed(2)}</p><p className="text-[9px] font-bold uppercase text-black/35">projected</p></div>
     </div>
   )
@@ -164,8 +166,9 @@ function LineupPlayerCell({ player }: { player: LineupPlayer }) {
 
 function BenchPlayer({ player, order }: { player: LineupPlayer; order: number }) {
   return (
-    <div className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 px-5 py-4">
+    <div className="grid grid-cols-[2rem_3rem_1fr_auto] items-center gap-3 px-5 py-4">
       <span className="font-display text-xl font-bold text-black/20">{order}</span>
+      <div className="grid h-14 w-11 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={player.photoUrl} playerName={player.playerName} className="h-full w-auto" /></div>
       <div className="min-w-0"><p className="truncate text-sm font-bold">{player.playerName}</p><p className="mt-1 text-xs text-black/45">{player.position} · {player.expectedMinutes.toFixed(0)} min</p></div>
       <p className="font-display text-lg font-bold">{player.projectedPoints.toFixed(2)}</p>
     </div>
@@ -201,17 +204,17 @@ function TransferMove({ recommendation, compact = false }: { recommendation: Tra
   return (
     <div className={compact ? 'px-5 py-4' : 'p-5'}>
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        <TransferPlayerName label="Sell" name={recommendation.playerOut.playerName} detail={`${recommendation.playerOut.teamName} · £${recommendation.playerOut.price.toFixed(1)}m`} tone="bg-[#ffcec5]" />
+        <TransferPlayerName label="Sell" name={recommendation.playerOut.playerName} photoUrl={recommendation.playerOut.photoUrl} detail={`${recommendation.playerOut.teamName} · £${recommendation.playerOut.price.toFixed(1)}m`} tone="bg-[#ffcec5]" />
         <ArrowRight size={18} className="text-black/25" />
-        <TransferPlayerName label="Buy" name={recommendation.playerIn.playerName} detail={`${recommendation.playerIn.teamName} · £${recommendation.playerIn.price.toFixed(1)}m`} tone="bg-[#b8ff3d]" align="right" />
+        <TransferPlayerName label="Buy" name={recommendation.playerIn.playerName} photoUrl={recommendation.playerIn.photoUrl} detail={`${recommendation.playerIn.teamName} · £${recommendation.playerIn.price.toFixed(1)}m`} tone="bg-[#b8ff3d]" align="right" />
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-black/45"><span className="truncate">Next: {recommendation.playerIn.nextFixtures.join(' · ') || 'TBC'}</span><span className="shrink-0 font-bold text-[#151a17]">{priceDifference > 0 ? `Costs £${priceDifference.toFixed(1)}m` : priceDifference < 0 ? `Releases £${Math.abs(priceDifference).toFixed(1)}m` : 'No price change'}</span></div>
     </div>
   )
 }
 
-function TransferPlayerName({ label, name, detail, tone, align = 'left' }: { label: string; name: string; detail: string; tone: string; align?: 'left' | 'right' }) {
-  return <div className={`min-w-0 ${align === 'right' ? 'text-right' : ''}`}><span className={`inline-block px-2 py-1 text-[9px] font-bold uppercase ${tone}`}>{label}</span><p className="mt-2 truncate text-sm font-bold" title={name}>{name}</p><p className="mt-1 truncate text-[10px] text-black/45">{detail}</p></div>
+function TransferPlayerName({ label, name, photoUrl, detail, tone, align = 'left' }: { label: string; name: string; photoUrl?: string; detail: string; tone: string; align?: 'left' | 'right' }) {
+  return <div className={`flex min-w-0 items-center gap-2 ${align === 'right' ? 'flex-row-reverse text-right' : ''}`}><div className="grid h-14 w-11 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={photoUrl} playerName={name} className="h-full w-auto" /></div><div className="min-w-0"><span className={`inline-block px-2 py-1 text-[9px] font-bold uppercase ${tone}`}>{label}</span><p className="mt-2 truncate text-sm font-bold" title={name}>{name}</p><p className="mt-1 truncate text-[10px] text-black/45">{detail}</p></div></div>
 }
 
 function HorizonGains({ gains }: { gains: TransferRecommendation['expectedPointGains'] }) {
@@ -225,7 +228,7 @@ function Explanation({ text }: { text?: string }) {
 function SellCandidateCard({ candidate }: { candidate: SellCandidate }) {
   return (
     <article className="p-5">
-      <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-bold">{candidate.player.playerName}</p><p className="mt-1 text-xs text-black/45">{candidate.player.teamName} · {candidate.player.position}</p></div><ConfidenceBadge score={candidate.confidenceScore} /></div>
+      <div className="flex items-start gap-3"><div className="grid h-16 w-12 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={candidate.player.photoUrl} playerName={candidate.player.playerName} className="h-full w-auto" /></div><div className="min-w-0 flex-1"><p className="truncate font-bold">{candidate.player.playerName}</p><p className="mt-1 text-xs text-black/45">{candidate.player.teamName} · {candidate.player.position}</p></div><ConfidenceBadge score={candidate.confidenceScore} /></div>
       <p className="mt-4 text-xs text-black/50">Best alternative: <strong className="text-[#151a17]">{candidate.replacement.playerName}</strong></p>
       <div className="mt-3 flex items-center justify-between gap-3"><span className="text-[10px] font-bold uppercase text-black/35">In {candidate.appearances} ranked move{candidate.appearances === 1 ? '' : 's'}</span><span className="font-display text-lg font-bold text-[#287c50]">+{candidate.fiveGameweekGain.toFixed(2)}</span></div>
       <p className="mt-3 text-[11px] leading-5 text-black/40">{candidate.reason}</p>
@@ -248,7 +251,7 @@ function CandidateCard({ candidate, role, icon: Icon, accent }: { candidate: Cap
     <Card className="relative overflow-hidden">
       <span className={`absolute inset-y-0 left-0 w-2 ${accent}`} />
       <div className="flex items-start justify-between gap-5 p-6 sm:p-8">
-        <div><div className="flex items-center gap-2 text-xs font-bold uppercase text-[#287c50]"><Icon size={16} /> {role}</div><h2 className="font-display mt-4 text-3xl font-bold">{candidate.playerName}</h2><p className="mt-2 text-sm text-black/45">{candidate.teamName} · {candidate.position}</p></div>
+        <div className="flex min-w-0 items-center gap-4"><div className="grid h-24 w-20 shrink-0 place-items-end overflow-hidden bg-[#e5f6ef]"><PlayerHeadshot photoUrl={candidate.photoUrl} playerName={candidate.playerName} className="h-full w-auto" /></div><div className="min-w-0"><div className="flex items-center gap-2 text-xs font-bold uppercase text-[#287c50]"><Icon size={16} /> {role}</div><h2 className="font-display mt-4 truncate text-3xl font-bold">{candidate.playerName}</h2><p className="mt-2 text-sm text-black/45">{candidate.teamName} · {candidate.position}</p></div></div>
         <div className="text-right"><p className="font-display text-4xl font-bold">{candidate.projectedPoints.toFixed(2)}</p><p className="mt-1 text-[10px] font-bold uppercase text-black/35">Projected points</p><p className="mt-4 text-xs text-black/45">Rank score <strong className="text-[#151a17]">{candidate.rankingScore.toFixed(2)}</strong></p></div>
       </div>
     </Card>

@@ -39,6 +39,7 @@ export interface FplPlayer {
   news: string
   chanceOfPlayingNextRound: number | null
   upcomingFixture: string | null
+  photoUrl?: string
 }
 
 export interface FplFixture {
@@ -90,6 +91,7 @@ export interface FplSquadPick {
   isViceCaptain: boolean
   gameweekPoints: number
   nextOpponent: string | null
+  photoUrl?: string
 }
 
 export interface CaptainRecommendation {
@@ -109,6 +111,7 @@ export interface CaptainCandidate {
   projectedPoints: number
   rankingScore: number
   factors: CaptainFactorBreakdown[]
+  photoUrl?: string
 }
 
 export interface CaptainFactorBreakdown {
@@ -138,6 +141,7 @@ export interface LineupPlayer {
   currentSquadPosition: number
   recommendedSquadPosition: number
   projections: LineupHorizonProjection[]
+  photoUrl?: string
 }
 
 export interface LineupHorizonProjection {
@@ -190,6 +194,7 @@ export interface TransferPlayer {
   status: string
   expectedMinutes: number
   nextFixtures: string[]
+  photoUrl?: string
 }
 
 export interface TransferHorizonGain {

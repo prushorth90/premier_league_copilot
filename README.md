@@ -174,6 +174,12 @@ The Transfers page shows live bank and free-transfer availability, then ranks th
 
 The Recommendations page combines captaincy, the legal starting XI and bench order, projected XI totals over 1/3/5 gameweeks, the best single and two-transfer moves, and recurring sale candidates into one decision dashboard. Factor explanations remain visible, and transfer confidence is shown as high confidence at 80% or above and speculative below that threshold.
 
+### Player headshots
+
+Player DTOs derive `photoUrl` from the official Premier League static image service using the stable FPL player `code`: `https://resources.premierleague.com/premierleague/photos/players/110x140/p{code}.png`. The application does not scrape search engines or third-party image sites.
+
+The React `PlayerHeadshot` component uses intrinsic `110x140` dimensions, fixed responsive containers, lazy loading, asynchronous decoding, and no-referrer requests. Missing player codes use the self-hosted `/images/player-placeholder.svg`; failed CDN requests switch to the same local placeholder. Production Content Security Policy allows images only from the application itself, data URLs, and `resources.premierleague.com`.
+
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
 ## Backend

@@ -1,5 +1,6 @@
 import { Crown } from 'lucide-react'
 import type { FplSquadPick } from '../../models/fpl'
+import { PlayerHeadshot } from '../player/PlayerHeadshot'
 
 interface PlayerCardProps {
   player: FplSquadPick
@@ -23,6 +24,9 @@ export function PlayerCard({ player, variant = 'pitch' }: PlayerCardProps) {
             <Crown size={10} /> {player.isCaptain ? 'C' : 'V'}
           </span>
         )}
+      </div>
+      <div className="grid h-16 place-items-end overflow-hidden bg-[#e5f6ef] sm:h-20">
+        <PlayerHeadshot photoUrl={player.photoUrl} playerName={player.displayName} className="h-full w-auto max-w-full" />
       </div>
       <div className="px-2 py-2 text-center sm:px-3 sm:py-3">
         <h3 className="truncate text-[11px] font-bold sm:text-sm" title={player.displayName}>{player.displayName}</h3>

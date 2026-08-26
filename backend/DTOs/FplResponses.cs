@@ -1,3 +1,5 @@
+using Backend.Models;
+
 namespace Backend.DTOs;
 
 public sealed record FplTeamResponse(
@@ -38,7 +40,8 @@ public sealed record FplPlayerResponse(
     string Status,
     string News,
     int? ChanceOfPlayingNextRound,
-    string? UpcomingFixture);
+    string? UpcomingFixture,
+    string PhotoUrl = PlayerPhotoUrl.Fallback);
 
 public sealed record FplFixtureResponse(
     int Id,
@@ -85,4 +88,5 @@ public sealed record FplSquadPickResponse(
     bool IsCaptain,
     bool IsViceCaptain,
     int GameweekPoints,
-    string? NextOpponent);
+    string? NextOpponent,
+    string PhotoUrl = PlayerPhotoUrl.Fallback);

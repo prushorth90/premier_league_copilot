@@ -36,7 +36,8 @@ public sealed record TransferPlayer(
     decimal Price,
     string Status,
     decimal ExpectedMinutes,
-    IReadOnlyList<string> NextFixtures);
+    IReadOnlyList<string> NextFixtures,
+    string PhotoUrl = PlayerPhotoUrl.Fallback);
 
 public sealed record TransferHorizonGain(
     int Gameweeks,

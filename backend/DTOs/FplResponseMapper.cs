@@ -43,7 +43,8 @@ public static class FplResponseMapper
         player.Status,
         player.News,
         player.ChanceOfPlayingNextRound,
-        upcomingFixtures.GetValueOrDefault(player.TeamId));
+        upcomingFixtures.GetValueOrDefault(player.TeamId),
+        PlayerPhotoUrl.FromCode(player.Code));
 
     public static FplFixtureResponse ToResponse(
         this Fixture fixture,
@@ -117,9 +118,10 @@ public static class FplResponseMapper
                     pick.Position,
                     pick.Multiplier,
                     pick.IsCaptain,
-                        pick.IsViceCaptain,
-                        player?.GameweekPoints ?? 0,
-                        nextOpponent);
+                    pick.IsViceCaptain,
+                    player?.GameweekPoints ?? 0,
+                    nextOpponent,
+                    PlayerPhotoUrl.FromCode(player?.Code ?? 0));
             }).ToArray());
     }
 

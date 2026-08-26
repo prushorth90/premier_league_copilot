@@ -1,5 +1,6 @@
 using Backend.Recommendation.Captain.Factors;
 using Backend.Recommendation.Captain.Models;
+using Backend.Models;
 
 namespace Backend.Recommendation.Captain;
 
@@ -30,7 +31,8 @@ public sealed class CaptainRankingCalculator(
             context.Position,
             projectedPoints,
             Round(breakdown.Sum(item => item.Score)),
-            breakdown);
+            breakdown,
+            PlayerPhotoUrl.FromCode(context.Player.Code));
     }
 
     private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);

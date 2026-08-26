@@ -1,5 +1,6 @@
 using Backend.Recommendation.Models;
 using Backend.Recommendation.Transfer.Models;
+using Backend.Models;
 
 namespace Backend.Recommendation.Transfer;
 
@@ -252,7 +253,8 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
         price / 10m,
         context.Player.Status,
         Round(context.Projection.ExpectedMinutes),
-        context.NextFixtures ?? []);
+        context.NextFixtures ?? [],
+        PlayerPhotoUrl.FromCode(context.Player.Code));
 
     private static ProjectionHorizon Horizon(TransferPlayerContext context, int gameweeks) =>
         context.Projection.Horizons.Single(horizon => horizon.Gameweeks == gameweeks);

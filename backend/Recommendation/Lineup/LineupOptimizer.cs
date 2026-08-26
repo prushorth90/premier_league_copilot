@@ -1,4 +1,5 @@
 using Backend.Recommendation.Lineup.Models;
+using Backend.Models;
 
 namespace Backend.Recommendation.Lineup;
 
@@ -66,7 +67,8 @@ public sealed class LineupOptimizer(IFplFormationValidator formationValidator) :
             0,
             context.Projection.Horizons
                 .Select(horizon => new LineupHorizonProjection(horizon.Gameweeks, horizon.ProjectedPoints))
-                .ToArray());
+                .ToArray(),
+            PlayerPhotoUrl.FromCode(context.Player.Code));
     }
 
     private static FormationOption CreateFormation(

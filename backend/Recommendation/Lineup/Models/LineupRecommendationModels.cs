@@ -22,7 +22,8 @@ public sealed record LineupPlayer(
     decimal RankingScore,
     int CurrentSquadPosition,
     int RecommendedSquadPosition,
-    IReadOnlyList<LineupHorizonProjection> Projections);
+    IReadOnlyList<LineupHorizonProjection> Projections,
+    string PhotoUrl = PlayerPhotoUrl.Fallback);
 
 public sealed record LineupHorizonProjection(
     int Gameweeks,
