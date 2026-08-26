@@ -10,6 +10,15 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(FplApiOptions.SectionName))
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _),
                 $"{FplApiOptions.SectionName}:BaseUrl must be an absolute URL")
+            .Validate(options => options.RequestTimeoutSeconds > 0,
+                $"{FplApiOptions.SectionName}:RequestTimeoutSeconds must be greater than zero")
+            .Validate(options =>
+                    options.BootstrapCacheMinutes > 0 &&
+                    options.FixturesCacheMinutes > 0 &&
+                    options.ManagerCacheMinutes > 0 &&
+                    options.SquadCacheMinutes > 0 &&
+                    options.PlayerHistoryCacheMinutes > 0,
+                $"{FplApiOptions.SectionName} cache durations must be greater than zero")
             .ValidateOnStart();
 
         services.AddOptions<PostgresOptions>()

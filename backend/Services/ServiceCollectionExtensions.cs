@@ -5,6 +5,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<IHealthStatusService, HealthStatusService>();
+        services.AddScoped<IFplDataService, FplDataService>();
 
         return services;
     }

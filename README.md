@@ -140,6 +140,18 @@ Swagger is enabled when `ASPNETCORE_ENVIRONMENT` is set to `Development`.
 
 The backend validates FPL API, PostgreSQL, and Redis configuration during startup. Controllers and services use async methods and propagate request cancellation tokens.
 
+### FPL data client
+
+`IFplDataService` provides typed, asynchronous access to these public FPL resources:
+
+- Bootstrap data from `bootstrap-static/`
+- Fixtures from `fixtures/`
+- Manager details from `entry/{managerId}/`
+- Manager squad picks from `entry/{managerId}/event/{gameweek}/picks/`
+- Player fixtures and history from `element-summary/{playerId}/`
+
+Transport DTOs are mapped to application models before data leaves the service. Redis caches bootstrap data for 60 minutes, fixtures for 15 minutes, manager and squad data for 5 minutes, and player history for 30 minutes by default. Cache failures fall back to the upstream API, while upstream failures are logged and returned through centralized exception handling as `502 Bad Gateway` responses.
+
 ## Environment variables
 
 Example values live in `.env.example`, `frontend/.env.example`, and `backend/.env.example`. Local `.env` files are ignored by Git.

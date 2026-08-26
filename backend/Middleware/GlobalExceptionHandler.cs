@@ -1,3 +1,4 @@
+using Backend.ExternalClients;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,17 +12,26 @@ public sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError(
+        var isUpstreamFailure = exception is FplApiException;
+        var statusCode = isUpstreamFailure
+            ? StatusCodes.Status502BadGateway
+            : StatusCodes.Status500InternalServerError;
+
+        logger.Log(
+            isUpstreamFailure ? LogLevel.Warning : LogLevel.Error,
             exception,
-            "Unhandled exception for request {RequestMethod} {RequestPath}. Trace ID: {TraceId}",
+            "Request {RequestMethod} {RequestPath} failed with status {StatusCode}. Trace ID: {TraceId}",
             httpContext.Request.Method,
             httpContext.Request.Path,
+            statusCode,
             httpContext.TraceIdentifier);
 
         var problemDetails = new ProblemDetails
         {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "An unexpected error occurred.",
+            Status = statusCode,
+            Title = isUpstreamFailure
+                ? "The Fantasy Premier League service is temporarily unavailable."
+                : "An unexpected error occurred.",
             Extensions = { ["traceId"] = httpContext.TraceIdentifier }
         };
 
