@@ -67,6 +67,13 @@ The GitHub Actions CI workflow runs on every push and pull request. It performs:
 - Backend NuGet restore, Release build, and all solution tests
 - Docker Compose configuration validation and fresh frontend/backend image builds
 
+The automated test suites use deterministic mocked FPL responses and do not require the public FPL API, Redis, or PostgreSQL unless a test explicitly targets an infrastructure integration. Coverage includes:
+
+- Backend xUnit: transport deserialization and domain mapping, cache fallback and concurrent request coalescing, projected-point factors and horizons, captain ranking, all legal formation boundaries, transfer budgets and club limits, two-transfer combinations, recommendation ranking, persistence repositories, controllers, and middleware
+- Frontend Vitest: setup validation and mocked team verification, routing, Dashboard data, PlayerCard states, pitch rows and bench order, player/fixture selectors, Transfers and Recommendations cards, recommendation horizon sorting, and loading/error states
+
+CI runs every `*.test.ts`/`*.test.tsx` file through `npm test` and every xUnit test in `PremierLeagueCopilot.sln` through `dotnet test`; no per-file allowlist needs maintenance when new tests are added.
+
 Run the same application checks locally with:
 
 ```bash
