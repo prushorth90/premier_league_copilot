@@ -10,4 +10,11 @@ public interface IPlayerRecommendationService
         int gameweeks,
         int candidateLimit,
         CancellationToken cancellationToken);
+
+    Task<PlayerRecommendationResult?> GetRecommendationIfAtRiskAsync(
+        FplCoachContext context,
+        PlayerAvailabilityResult verifiedAvailability,
+        int gameweeks,
+        int candidateLimit,
+        CancellationToken cancellationToken);
 }

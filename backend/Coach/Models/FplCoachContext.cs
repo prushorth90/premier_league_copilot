@@ -108,3 +108,10 @@ public enum PlayerRecommendationAction
     Bench,
     Transfer
 }
+
+public sealed record CoachSpecialistGrounding(
+    IReadOnlyList<string> InvokedAgents,
+    PlayerAvailabilityResult? Availability,
+    PlayerFixtureWindowResult? Fixtures,
+    PlayerReplacementResult? Transfers,
+    PlayerRecommendationResult? Recommendation);

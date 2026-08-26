@@ -27,6 +27,7 @@ public sealed class GitHubCopilotChatClient : ICopilotChatClient, IAsyncDisposab
     public async Task<string> GenerateAsync(
         string message,
         FplCoachContext context,
+        CoachSpecialistGrounding grounding,
         CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -38,12 +39,18 @@ public sealed class GitHubCopilotChatClient : ICopilotChatClient, IAsyncDisposab
             var sessionConfig = sessionFactory.Create(context, options.Model, timeout.Token);
             await using var session = await client.CreateSessionAsync(sessionConfig, timeout.Token);
             var contextJson = JsonSerializer.Serialize(context, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var groundingJson = JsonSerializer.Serialize(grounding, new JsonSerializerOptions(JsonSerializerDefaults.Web));
             var prompt = $$"""
                 CURRENT_FPL_CONTEXT:
                 {{contextJson}}
 
+                VERIFIED_SPECIALIST_RESULTS:
+                {{groundingJson}}
+
                 USER_MESSAGE:
                 {{message}}
+
+                Explain the verified specialist results and deterministic recommendation conversationally. Do not invoke a specialist already listed in invokedAgents, recalculate the recommendation, or contradict its action.
                 """;
             var response = await session.SendAndWaitAsync(
                 prompt,

@@ -13,6 +13,7 @@ public class CoachTests
 {
     [Theory]
     [InlineData("Saka is injured", CoachRecommendationType.Availability)]
+    [InlineData("Show Saka fixtures", CoachRecommendationType.Fixture)]
     [InlineData("Should I sell Saka?", CoachRecommendationType.Transfer)]
     [InlineData("Who can I replace Saka with?", CoachRecommendationType.Replacement)]
     public async Task CopilotCoachServiceSendsStructuredSquadContext(
@@ -46,6 +47,10 @@ public class CoachTests
             Assert.StartsWith("Official FPL data does not confirm that Saka is injured.", response.Message);
             Assert.Equal("Doubtful", response.Availability?.StatusDescription);
             Assert.Equal(85m, response.Availability?.Confidence);
+            Assert.Equal(
+                [FplCoachAgents.InjurySpecialistName, FplCoachAgents.FixtureSpecialistName, FplCoachAgents.TransferSpecialistName],
+                copilotClient.Grounding?.InvokedAgents);
+            Assert.Equal(PlayerRecommendationAction.Transfer, copilotClient.Grounding?.Recommendation?.Action);
         }
         if (expectedType is CoachRecommendationType.Transfer or CoachRecommendationType.Replacement)
         {
@@ -58,6 +63,13 @@ public class CoachTests
             var candidate = Assert.Single(response.Transfers!.Candidates);
             Assert.Equal("Palmer", candidate.Player.PlayerName);
             Assert.Equal(8m, candidate.ProjectedPointDifference);
+        }
+        if (expectedType == CoachRecommendationType.Fixture)
+        {
+            Assert.Equal([FplCoachAgents.FixtureSpecialistName], copilotClient.Grounding?.InvokedAgents);
+            Assert.Null(copilotClient.Grounding?.Availability);
+            Assert.Null(copilotClient.Grounding?.Transfers);
+            Assert.Null(copilotClient.Grounding?.Recommendation);
         }
         Assert.Equal(message, copilotClient.Message);
         Assert.Equal(15, copilotClient.Context?.Squad.Count);
@@ -186,14 +198,17 @@ public class CoachTests
     {
         public string? Message { get; private set; }
         public FplCoachContext? Context { get; private set; }
+        public CoachSpecialistGrounding? Grounding { get; private set; }
 
         public Task<string> GenerateAsync(
             string message,
             FplCoachContext context,
+            CoachSpecialistGrounding grounding,
             CancellationToken cancellationToken)
         {
             Message = message;
             Context = context;
+            Grounding = grounding;
             return Task.FromResult("Generated Copilot response");
         }
     }
@@ -212,7 +227,15 @@ public class CoachTests
             "Official FPL bootstrap data");
 
         public Task<PlayerFixtureWindowResult> GetUpcomingFixturesAsync(FplCoachContext context, int playerId, int gameweeks, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            Task.FromResult(new PlayerFixtureWindowResult(
+                new CoachFixturePlayer(playerId, "Saka", "Arsenal", "MID"),
+                gameweeks,
+                [new CoachUpcomingFixture(1, 9, "Gameweek 9", null, "Chelsea", true, "Home", 2)],
+                2m,
+                4m,
+                "Favorable",
+                "Favorable schedule.",
+                "Official FPL fixture data"));
 
         public Task<PlayerReplacementResult> GetTransferCandidatesAsync(FplCoachContext context, int playerId, int limit, CancellationToken cancellationToken) =>
             Task.FromResult(new PlayerReplacementResult(
@@ -269,6 +292,15 @@ public class CoachTests
                 transfers,
                 "Deterministic C# recommendation policy"));
         }
+
+        public Task<PlayerRecommendationResult?> GetRecommendationIfAtRiskAsync(
+            FplCoachContext context,
+            PlayerAvailabilityResult verifiedAvailability,
+            int gameweeks,
+            int candidateLimit,
+            CancellationToken cancellationToken) =>
+            GetRecommendationAsync(context, verifiedAvailability.Player.PlayerId, gameweeks, candidateLimit, cancellationToken)
+                .ContinueWith<PlayerRecommendationResult?>(task => task.Result, cancellationToken);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset timestamp) : TimeProvider

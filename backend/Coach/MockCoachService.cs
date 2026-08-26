@@ -42,17 +42,29 @@ public sealed class CopilotCoachService(
             manager,
             squad,
             bootstrap);
-        var recommendation = RequiresRecommendation(recommendationType) && matchedPlayer is not null
-            ? await recommendationService.GetRecommendationAsync(
+        PlayerAvailabilityResult? availability = null;
+        PlayerRecommendationResult? recommendation = null;
+        if (matchedPlayer is not null && recommendationType == CoachRecommendationType.Availability)
+        {
+            availability = factService.GetPlayerAvailability(context, matchedPlayer.Id);
+            recommendation = await recommendationService.GetRecommendationIfAtRiskAsync(
+                context,
+                availability,
+                GetDecisionGameweeks(normalizedMessage),
+                3,
+                cancellationToken);
+        }
+        else if (matchedPlayer is not null && RequiresRecommendation(recommendationType))
+        {
+            recommendation = await recommendationService.GetRecommendationAsync(
                 context,
                 matchedPlayer.Id,
                 GetDecisionGameweeks(normalizedMessage),
                 3,
-                cancellationToken)
-            : null;
-        var availability = recommendation?.Availability ?? (recommendationType == CoachRecommendationType.Availability && matchedPlayer is not null
-            ? factService.GetPlayerAvailability(context, matchedPlayer.Id)
-            : null);
+                cancellationToken);
+            availability = recommendation.Availability;
+        }
+
         var fixtures = recommendation?.Fixtures ?? (recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null
             ? await factService.GetUpcomingFixturesAsync(
                 context,
@@ -65,11 +77,12 @@ public sealed class CopilotCoachService(
             ?? availability?.Confidence
             ?? transfers?.Candidates.FirstOrDefault()?.Confidence
             ?? GetConfidence(recommendationType, matchedPlayer);
-        var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, cancellationToken);
+        var grounding = CreateGrounding(availability, fixtures, transfers, recommendation);
+        var reply = await copilotChatClient.GenerateAsync(normalizedMessage, context, grounding, cancellationToken);
+        reply = EnsureRecommendationIsGrounded(reply, recommendation);
         reply = EnsureAvailabilityClaimIsGrounded(
             reply,
             recommendationType == CoachRecommendationType.Availability ? availability : null);
-        reply = EnsureRecommendationIsGrounded(reply, recommendation);
 
         return new CoachChatResponse(
             reply,
@@ -83,6 +96,31 @@ public sealed class CopilotCoachService(
             fixtures,
             transfers,
             recommendation);
+    }
+
+    private static CoachSpecialistGrounding CreateGrounding(
+        PlayerAvailabilityResult? availability,
+        PlayerFixtureWindowResult? fixtures,
+        PlayerReplacementResult? transfers,
+        PlayerRecommendationResult? recommendation)
+    {
+        var invokedAgents = new List<string>(3);
+        if (availability is not null)
+        {
+            invokedAgents.Add(FplCoachAgents.InjurySpecialistName);
+        }
+
+        if (fixtures is not null)
+        {
+            invokedAgents.Add(FplCoachAgents.FixtureSpecialistName);
+        }
+
+        if (transfers is not null)
+        {
+            invokedAgents.Add(FplCoachAgents.TransferSpecialistName);
+        }
+
+        return new CoachSpecialistGrounding(invokedAgents, availability, fixtures, transfers, recommendation);
     }
 
     private static string EnsureRecommendationIsGrounded(

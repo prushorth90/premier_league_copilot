@@ -7,5 +7,6 @@ public interface ICopilotChatClient
     Task<string> GenerateAsync(
         string message,
         FplCoachContext context,
+        CoachSpecialistGrounding grounding,
         CancellationToken cancellationToken);
 }
