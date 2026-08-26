@@ -8,7 +8,16 @@ public sealed record TransferRecommendationResponse(
     int Gameweek,
     DateTimeOffset CalculatedAt,
     decimal Bank,
-    IReadOnlyList<TransferRecommendation> Recommendations);
+    IReadOnlyList<TransferRecommendation> Recommendations,
+    IReadOnlyList<TransferCombinationRecommendation> Combinations);
+
+public sealed record TransferCombinationRecommendation(
+    IReadOnlyList<TransferRecommendation> Transfers,
+    decimal TotalPriceDifference,
+    IReadOnlyList<TransferHorizonGain> ExpectedPointGains,
+    decimal WeightedGain,
+    decimal ConfidenceScore,
+    IReadOnlyList<TransferExplanation> Explanations);
 
 public sealed record TransferRecommendation(
     TransferPlayer PlayerOut,

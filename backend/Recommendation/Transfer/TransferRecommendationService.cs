@@ -39,21 +39,20 @@ public sealed class TransferRecommendationService(
         var squadPlayers = squad.Picks.Select(pick => players.GetValueOrDefault(pick.PlayerId)
             ?? throw new KeyNotFoundException($"FPL player {pick.PlayerId} was not found.")).ToArray();
         var ownedIds = squadPlayers.Select(player => player.Id).ToHashSet();
-        var clubCounts = squadPlayers.GroupBy(player => player.TeamId).ToDictionary(group => group.Key, group => group.Count());
-        var eligibleMarket = bootstrap.Players
+        var saleValues = squad.Picks
+            .Select(pick => pick.SellingPrice ?? players[pick.PlayerId].Price)
+            .OrderByDescending(price => price)
+            .Take(2)
+            .ToArray();
+        var availableMarket = bootstrap.Players
             .Where(player => !ownedIds.Contains(player.Id))
             .Where(player => player.Status is "a" or "d")
-            .Where(player => squad.Picks.Any(pick =>
-            {
-                var playerOut = players[pick.PlayerId];
-                var sellingPrice = pick.SellingPrice ?? playerOut.Price;
-                var resultingClubCount = clubCounts.GetValueOrDefault(player.TeamId)
-                    - (playerOut.TeamId == player.TeamId ? 1 : 0)
-                    + 1;
-                return player.PositionId == playerOut.PositionId
-                    && player.Price <= sellingPrice + manager.Bank
-                    && resultingClubCount <= 3;
-            }))
+            .ToArray();
+        var minimumIncomingPrice = availableMarket.Min(player => player.Price);
+        var maximumSinglePurchase = manager.Bank + saleValues.Sum() - minimumIncomingPrice;
+        var eligibleMarket = availableMarket
+            .Where(player => player.Price <= maximumSinglePurchase)
+            .Where(player => squadPlayers.Any(playerOut => playerOut.PositionId == player.PositionId))
             .ToArray();
         var contexts = await ProjectPlayersAsync(
             squadPlayers.Concat(eligibleMarket).DistinctBy(player => player.Id),
@@ -64,13 +63,15 @@ public sealed class TransferRecommendationService(
         var squadContexts = squad.Picks.Select(pick => contextsById[pick.PlayerId] with { SellingPrice = pick.SellingPrice }).ToArray();
         var marketContexts = eligibleMarket.Select(player => contextsById[player.Id]).ToArray();
         var recommendations = recommendationEngine.Rank(squadContexts, marketContexts, manager.Bank, limit);
+        var combinations = recommendationEngine.RankCombinations(squadContexts, marketContexts, manager.Bank, limit);
 
         return new(
             teamId,
             manager.CurrentGameweek,
             timeProvider.GetUtcNow(),
             manager.Bank / 10m,
-            recommendations);
+            recommendations,
+            combinations);
     }
 
     private async Task<IReadOnlyList<TransferPlayerContext>> ProjectPlayersAsync(

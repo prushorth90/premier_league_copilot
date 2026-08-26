@@ -24,11 +24,11 @@ public class TransferRecommendationServiceTests
         Assert.Equal(3, result.Gameweek);
         Assert.Equal(0.5m, result.Bank);
         Assert.Equal(2, result.Recommendations.Count);
+        Assert.Equal(2, result.Combinations.Count);
         Assert.All(result.Recommendations, recommendation => Assert.Equal(101, recommendation.PlayerIn.PlayerId));
-        Assert.Equal(Enumerable.Range(1, 15).Append(101).Order(), dataService.RequestedHistoryIds.Order());
+        Assert.Equal(Enumerable.Range(1, 15).Concat([101, 104]).Order(), dataService.RequestedHistoryIds.Order());
         Assert.DoesNotContain(102, dataService.RequestedHistoryIds);
         Assert.DoesNotContain(103, dataService.RequestedHistoryIds);
-        Assert.DoesNotContain(104, dataService.RequestedHistoryIds);
     }
 
     [Theory]

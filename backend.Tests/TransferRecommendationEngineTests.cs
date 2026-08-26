@@ -107,6 +107,90 @@ public class TransferRecommendationEngineTests
     }
 
     [Fact]
+    public void RankCombinationsAllowsExpensiveTransferFundedBySecondSale()
+    {
+        var squad = CreateValidSquad();
+        var expensiveDefender = CreateContext(201, 6, 2, 70, 10m, 30m, 50m);
+        var budgetMidfielder = CreateContext(202, 7, 3, 40, 5m, 15m, 25m);
+
+        var singles = engine.Rank(squad, [expensiveDefender, budgetMidfielder], bank: 10);
+        var combinations = engine.RankCombinations(squad, [expensiveDefender, budgetMidfielder], bank: 10);
+
+        Assert.DoesNotContain(singles, recommendation => recommendation.PlayerIn.PlayerId == 201);
+        var combination = combinations.First(recommendation =>
+            recommendation.Transfers.Select(transfer => transfer.PlayerIn.PlayerId).Order().SequenceEqual([201, 202]));
+        Assert.Equal(1m, combination.TotalPriceDifference);
+        Assert.Equal([3, 5], combination.ExpectedPointGains.Select(gain => gain.Gameweeks));
+        Assert.Equal(21m, combination.ExpectedPointGains.Single(gain => gain.Gameweeks == 3).ExpectedPointGain);
+        Assert.Equal(35m, combination.ExpectedPointGains.Single(gain => gain.Gameweeks == 5).ExpectedPointGain);
+        Assert.Equal(7m, combination.WeightedGain);
+    }
+
+    [Fact]
+    public void RankCombinationsRejectsPairOnePriceUnitOverCombinedBudget()
+    {
+        var market = new[]
+        {
+            CreateContext(201, 6, 2, 71, 10m, 30m, 50m),
+            CreateContext(202, 7, 3, 40, 5m, 15m, 25m)
+        };
+
+        var result = engine.RankCombinations(CreateValidSquad(), market, bank: 10);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void RankCombinationsRejectsResultingClubLimitViolation()
+    {
+        var market = new[]
+        {
+            CreateContext(201, 1, 4, 50, 10m, 30m, 50m),
+            CreateContext(202, 1, 4, 50, 9m, 27m, 45m)
+        };
+
+        var result = engine.RankCombinations(CreateValidSquad(), market, bank: 0);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void RankCombinationsReturnsDistinctPlayersAndPreservesPositions()
+    {
+        var market = new[]
+        {
+            CreateContext(201, 6, 2, 50, 10m, 30m, 50m),
+            CreateContext(202, 7, 2, 50, 9m, 27m, 45m),
+            CreateContext(203, 8, 3, 50, 8m, 24m, 40m)
+        };
+
+        var result = engine.RankCombinations(CreateValidSquad(), market, bank: 0, limit: 5);
+
+        Assert.Equal(5, result.Count);
+        Assert.All(result, combination =>
+        {
+            Assert.Equal(2, combination.Transfers.Select(transfer => transfer.PlayerOut.PlayerId).Distinct().Count());
+            Assert.Equal(2, combination.Transfers.Select(transfer => transfer.PlayerIn.PlayerId).Distinct().Count());
+            Assert.All(combination.Transfers, transfer => Assert.Equal(transfer.PlayerOut.Position, transfer.PlayerIn.Position));
+        });
+        Assert.Equal(result.OrderByDescending(combination => combination.WeightedGain), result);
+    }
+
+    [Fact]
+    public void RankCombinationsFiltersNonImprovingPairs()
+    {
+        var market = new[]
+        {
+            CreateContext(201, 6, 2, 50, 4m, 9m, 15m),
+            CreateContext(202, 7, 3, 50, 4m, 9m, 15m)
+        };
+
+        var result = engine.RankCombinations(CreateValidSquad(), market, bank: 0);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public void RankRejectsIncompleteSquad()
     {
         var exception = Assert.Throws<InvalidOperationException>(() => engine.Rank(CreateValidSquad().Take(14).ToArray(), [], 0));

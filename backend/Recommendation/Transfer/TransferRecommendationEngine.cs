@@ -7,6 +7,8 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
 {
     private static readonly int[] Horizons = [1, 3, 5];
     private const decimal MinimumExpectedMinutes = 30m;
+    private const int TopCandidatesPerPlayer = 12;
+    private const int BudgetCandidatesPerPlayer = 4;
 
     public IReadOnlyList<TransferRecommendation> Rank(
         IReadOnlyList<TransferPlayerContext> squad,
@@ -32,6 +34,69 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
             .ToArray();
     }
 
+    public IReadOnlyList<TransferCombinationRecommendation> RankCombinations(
+        IReadOnlyList<TransferPlayerContext> squad,
+        IReadOnlyList<TransferPlayerContext> market,
+        int bank,
+        int limit = 10)
+    {
+        ValidateInputs(squad, bank, limit);
+        var ownedIds = squad.Select(context => context.Player.Id).ToHashSet();
+        var clubCounts = squad.GroupBy(context => context.Player.TeamId).ToDictionary(group => group.Key, group => group.Count());
+        var candidatePool = squad
+            .SelectMany(playerOut => market
+                .Where(playerIn => IsEligibleReplacement(playerOut, playerIn, ownedIds))
+                .Select(playerIn => new AtomicCandidate(playerOut, playerIn, CreateRecommendation(playerOut, playerIn))))
+            .GroupBy(candidate => candidate.PlayerOut.Player.Id)
+            .SelectMany(group => group
+                .OrderByDescending(candidate => CombinationGain(candidate.Recommendation))
+                .ThenBy(candidate => candidate.PlayerIn.Player.Id)
+                .Take(TopCandidatesPerPlayer)
+                .Concat(group
+                    .OrderBy(candidate => candidate.PlayerIn.Player.Price)
+                    .ThenByDescending(candidate => CombinationGain(candidate.Recommendation))
+                    .Take(BudgetCandidatesPerPlayer)))
+            .DistinctBy(candidate => (candidate.PlayerOut.Player.Id, candidate.PlayerIn.Player.Id))
+            .ToArray();
+        var combinations = new List<CombinationCandidate>();
+
+        for (var firstIndex = 0; firstIndex < candidatePool.Length; firstIndex++)
+        {
+            for (var secondIndex = firstIndex + 1; secondIndex < candidatePool.Length; secondIndex++)
+            {
+                var first = candidatePool[firstIndex];
+                var second = candidatePool[secondIndex];
+                if (!IsValidCombination(first, second, clubCounts, bank))
+                {
+                    continue;
+                }
+
+                var recommendation = CreateCombination(first.Recommendation, second.Recommendation);
+                if (recommendation.WeightedGain <= 0m)
+                {
+                    continue;
+                }
+
+                var outgoingIds = new[] { first.PlayerOut.Player.Id, second.PlayerOut.Player.Id }.Order().ToArray();
+                var incomingIds = new[] { first.PlayerIn.Player.Id, second.PlayerIn.Player.Id }.Order().ToArray();
+                combinations.Add(new($"{outgoingIds[0]}:{outgoingIds[1]}>{incomingIds[0]}:{incomingIds[1]}", recommendation));
+            }
+        }
+
+        return combinations
+            .GroupBy(candidate => candidate.SquadChangeKey)
+            .Select(group => group
+                .OrderBy(candidate => candidate.Recommendation.Transfers[0].PlayerOut.PlayerId)
+                .ThenBy(candidate => candidate.Recommendation.Transfers[0].PlayerIn.PlayerId)
+                .First().Recommendation)
+            .OrderByDescending(recommendation => recommendation.WeightedGain)
+            .ThenByDescending(recommendation => recommendation.ConfidenceScore)
+            .ThenByDescending(recommendation => recommendation.ExpectedPointGains.Single(gain => gain.Gameweeks == 5).ExpectedPointGain)
+            .ThenBy(recommendation => recommendation.Transfers.Min(transfer => transfer.PlayerIn.PlayerId))
+            .Take(limit)
+            .ToArray();
+    }
+
     private static bool IsValidReplacement(
         TransferPlayerContext playerOut,
         TransferPlayerContext playerIn,
@@ -39,10 +104,7 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
         IReadOnlyDictionary<int, int> clubCounts,
         int bank)
     {
-        if (ownedIds.Contains(playerIn.Player.Id)
-            || playerIn.Player.PositionId != playerOut.Player.PositionId
-            || playerIn.Player.Status is not ("a" or "d")
-            || playerIn.Projection.ExpectedMinutes < MinimumExpectedMinutes
+        if (!IsEligibleReplacement(playerOut, playerIn, ownedIds)
             || playerIn.Player.Price > (playerOut.SellingPrice ?? playerOut.Player.Price) + bank)
         {
             return false;
@@ -52,6 +114,89 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
             - (playerOut.Player.TeamId == playerIn.Player.TeamId ? 1 : 0)
             + 1;
         return incomingClubCount <= 3;
+    }
+
+    private static bool IsEligibleReplacement(
+        TransferPlayerContext playerOut,
+        TransferPlayerContext playerIn,
+        IReadOnlySet<int> ownedIds) =>
+        !ownedIds.Contains(playerIn.Player.Id)
+        && playerIn.Player.PositionId == playerOut.Player.PositionId
+        && playerIn.Player.Status is "a" or "d"
+        && playerIn.Projection.ExpectedMinutes >= MinimumExpectedMinutes;
+
+    private static bool IsValidCombination(
+        AtomicCandidate first,
+        AtomicCandidate second,
+        IReadOnlyDictionary<int, int> clubCounts,
+        int bank)
+    {
+        if (first.PlayerOut.Player.Id == second.PlayerOut.Player.Id
+            || first.PlayerIn.Player.Id == second.PlayerIn.Player.Id)
+        {
+            return false;
+        }
+
+        var saleValue = (first.PlayerOut.SellingPrice ?? first.PlayerOut.Player.Price)
+            + (second.PlayerOut.SellingPrice ?? second.PlayerOut.Player.Price);
+        var purchaseCost = first.PlayerIn.Player.Price + second.PlayerIn.Player.Price;
+        if (purchaseCost > saleValue + bank)
+        {
+            return false;
+        }
+
+        var resultingClubCounts = clubCounts.ToDictionary(item => item.Key, item => item.Value);
+        resultingClubCounts[first.PlayerOut.Player.TeamId]--;
+        resultingClubCounts[second.PlayerOut.Player.TeamId]--;
+        resultingClubCounts[first.PlayerIn.Player.TeamId] = resultingClubCounts.GetValueOrDefault(first.PlayerIn.Player.TeamId) + 1;
+        resultingClubCounts[second.PlayerIn.Player.TeamId] = resultingClubCounts.GetValueOrDefault(second.PlayerIn.Player.TeamId) + 1;
+        return resultingClubCounts.Values.All(count => count <= 3);
+    }
+
+    private static TransferCombinationRecommendation CreateCombination(
+        TransferRecommendation first,
+        TransferRecommendation second)
+    {
+        var transfers = new[] { first, second }
+            .OrderBy(transfer => transfer.PlayerOut.PlayerId)
+            .ThenBy(transfer => transfer.PlayerIn.PlayerId)
+            .ToArray();
+        var gains = new[] { 3, 5 }.Select(gameweeks =>
+        {
+            var firstGain = first.ExpectedPointGains.Single(gain => gain.Gameweeks == gameweeks);
+            var secondGain = second.ExpectedPointGains.Single(gain => gain.Gameweeks == gameweeks);
+            return new TransferHorizonGain(
+                gameweeks,
+                Round(firstGain.PlayerOutPoints + secondGain.PlayerOutPoints),
+                Round(firstGain.PlayerInPoints + secondGain.PlayerInPoints),
+                Round(firstGain.ExpectedPointGain + secondGain.ExpectedPointGain));
+        }).ToArray();
+        var weightedGain = Round(
+            gains.Single(gain => gain.Gameweeks == 3).ExpectedPointGain / 3m * 0.6m
+            + gains.Single(gain => gain.Gameweeks == 5).ExpectedPointGain / 5m * 0.4m);
+        var totalPriceDifference = Round(first.PriceDifference + second.PriceDifference);
+        var fixtureQuality = Round(first.Explanations.Single(item => item.Factor == "Fixture quality").Score
+            + second.Explanations.Single(item => item.Factor == "Fixture quality").Score);
+
+        return new(
+            transfers,
+            totalPriceDifference,
+            gains,
+            weightedGain,
+            Round((first.ConfidenceScore + second.ConfidenceScore) / 2m),
+            [
+                new("Expected points", weightedGain, $"Combined weighted improvement over 3 and 5 gameweeks: {weightedGain:+0.00;-0.00;0.00} points per gameweek."),
+                new("Fixture quality", fixtureQuality, $"Combined fixture and venue contribution changes by {fixtureQuality:+0.00;-0.00;0.00}."),
+                new("Budget", -totalPriceDifference, totalPriceDifference <= 0m ? $"The two transfers release £{-totalPriceDifference:0.0}m." : $"The two transfers use £{totalPriceDifference:0.0}m from available funds."),
+                new("Squad constraints", 1m, "Both replacements preserve position counts and the three-player club limit.")
+            ]);
+    }
+
+    private static decimal CombinationGain(TransferRecommendation recommendation)
+    {
+        var threeGameweekGain = recommendation.ExpectedPointGains.Single(gain => gain.Gameweeks == 3).ExpectedPointGain;
+        var fiveGameweekGain = recommendation.ExpectedPointGains.Single(gain => gain.Gameweeks == 5).ExpectedPointGain;
+        return threeGameweekGain / 3m * 0.6m + fiveGameweekGain / 5m * 0.4m;
     }
 
     private static TransferRecommendation CreateRecommendation(
@@ -139,4 +284,13 @@ public sealed class TransferRecommendationEngine : ITransferRecommendationEngine
     }
 
     private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private sealed record AtomicCandidate(
+        TransferPlayerContext PlayerOut,
+        TransferPlayerContext PlayerIn,
+        TransferRecommendation Recommendation);
+
+    private sealed record CombinationCandidate(
+        string SquadChangeKey,
+        TransferCombinationRecommendation Recommendation);
 }

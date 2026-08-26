@@ -180,6 +180,10 @@ The transfer recommendation service evaluates same-position replacements for eve
 
 Recommendations compare projected points over the next 1, 3, and 5 gameweeks. Ranking normalizes the cumulative 3- and 5-gameweek gains to a per-gameweek rate and weights the horizons 50%, 30%, and 20%. Each result includes player out/in details, price difference, horizon gains, weighted gain, a 0-100 confidence score, and explanations for expected points, fixture quality, expected minutes, availability, and budget.
 
+The same endpoint also returns two-transfer combinations ranked over the 3- and 5-gameweek horizons at 60% and 40%. Combination affordability is evaluated after adding bank and both exact selling prices, so savings from one move can fund the other. Every resulting squad is checked for distinct players, unchanged position allocation, and the three-player club limit.
+
+To keep combination search interactive, the engine retains each outgoing player's strongest projected replacements plus its cheapest budget-enabling options, then evaluates and deduplicates only pairs from that bounded pool. The `limit` query parameter controls both the number of single transfers and the number of combinations returned rather than exposing every valid possibility.
+
 ### FPL data client
 
 `IFplDataService` provides typed, asynchronous access to these public FPL resources:
