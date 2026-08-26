@@ -111,6 +111,8 @@ The frontend uses a typed API client and TanStack Query for all backend FPL requ
 
 The Transfers page shows live bank and free-transfer availability, then ranks the top single moves and jointly funded two-transfer combinations. Users can switch between 1-gameweek and 5-gameweek ordering while retaining visible 1/3/5-gameweek gains, incoming fixtures, confidence, price impact, and recommendation reasoning.
 
+The Recommendations page combines captaincy, the legal starting XI and bench order, projected XI totals over 1/3/5 gameweeks, the best single and two-transfer moves, and recurring sale candidates into one decision dashboard. Factor explanations remain visible, and transfer confidence is shown as high confidence at 80% or above and speculative below that threshold.
+
 Set `VITE_API_BASE_URL` in `frontend/.env` when the API is not running at `http://localhost:5082`.
 
 ## Backend

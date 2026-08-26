@@ -137,6 +137,12 @@ export interface LineupPlayer {
   rankingScore: number
   currentSquadPosition: number
   recommendedSquadPosition: number
+  projections: LineupHorizonProjection[]
+}
+
+export interface LineupHorizonProjection {
+  gameweeks: number
+  projectedPoints: number
 }
 
 export interface LineupChange {

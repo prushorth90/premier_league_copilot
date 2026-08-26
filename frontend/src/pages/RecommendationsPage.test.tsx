@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import type { CaptainCandidate, CaptainRecommendation, LineupPlayer, LineupRecommendation } from '../models/fpl'
+import type { CaptainCandidate, CaptainRecommendation, LineupPlayer, LineupRecommendation, TransferCombinationRecommendation, TransferRecommendation, TransferRecommendationResponse } from '../models/fpl'
 import { fplQueryKeys } from '../queries/fplQueries'
 import { TeamProvider } from '../team/TeamContext'
 import { RecommendationsPage } from './RecommendationsPage'
@@ -40,9 +40,32 @@ describe('RecommendationsPage', () => {
       ],
       changes: [{ playerId: 12, playerName: 'First substitute', changeType: 'Moved to starting XI', currentSquadPosition: 12, recommendedSquadPosition: 11 }],
     }
+    const bestTransfer = createTransfer(20, 'Sell Defender', 120, 'Buy Defender', 2, 6, 10, 92)
+    const speculativeTransfer = createTransfer(22, 'Speculative Sale', 121, 'Alternative Defender', 1, 4, 8, 68)
+    const secondTransfer = createTransfer(21, 'Sell Midfielder', 122, 'Buy Midfielder', 1.5, 5, 9, 86, 'MID')
+    const combination: TransferCombinationRecommendation = {
+      transfers: [bestTransfer, secondTransfer],
+      totalPriceDifference: -1,
+      expectedPointGains: [
+        { gameweeks: 3, playerOutPoints: 20, playerInPoints: 31, expectedPointGain: 11 },
+        { gameweeks: 5, playerOutPoints: 30, playerInPoints: 49, expectedPointGain: 19 },
+      ],
+      weightedGain: 3.72,
+      confidenceScore: 89,
+      explanations: [{ factor: 'Expected points', score: 3.72, explanation: 'Combined long-term upgrade.' }],
+    }
+    const transfers: TransferRecommendationResponse = {
+      teamId: 42,
+      gameweek: 8,
+      calculatedAt: '2026-10-20T12:00:00Z',
+      bank: 0.5,
+      recommendations: [bestTransfer, speculativeTransfer, secondTransfer],
+      combinations: [combination],
+    }
 
     queryClient.setQueryData(fplQueryKeys.captainRecommendation(42), recommendation)
     queryClient.setQueryData(fplQueryKeys.lineupRecommendation(42), lineup)
+    queryClient.setQueryData(fplQueryKeys.transferRecommendations(42), transfers)
 
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
@@ -55,6 +78,17 @@ describe('RecommendationsPage', () => {
     )
 
     expect(markup).toContain('Gameweek 8')
+    expect(markup).toContain('Decision dashboard')
+    expect(markup).toContain('Next 3 GWs')
+    expect(markup).toContain('206.25')
+    expect(markup).toContain('Best single transfer')
+    expect(markup).toContain('Best two-transfer combination')
+    expect(markup).toContain('Sell Defender')
+    expect(markup).toContain('Buy Defender')
+    expect(markup).toContain('Potential sales')
+    expect(markup).toContain('High confidence')
+    expect(markup).toContain('Speculative')
+    expect(markup).toContain('Combined long-term upgrade.')
     expect(markup).toContain('Recommended starting XI')
     expect(markup).toContain('3-5-2')
     expect(markup).toContain('David Raya')
@@ -82,6 +116,11 @@ describe('RecommendationsPage', () => {
       rankingScore: 6.82,
       currentSquadPosition: recommendedSquadPosition,
       recommendedSquadPosition,
+      projections: [
+        { gameweeks: 1, projectedPoints: 6.25 },
+        { gameweeks: 3, projectedPoints: 18.75 },
+        { gameweeks: 5, projectedPoints: 31.25 },
+      ],
     }
   }
 })
@@ -99,5 +138,31 @@ function createCandidate(playerId: number, playerName: string, projectedPoints: 
       score: projectedPoints * 0.65,
       explanation: 'Strong projection for the next fixture.',
     }],
+  }
+}
+
+function createTransfer(
+  playerOutId: number,
+  playerOutName: string,
+  playerInId: number,
+  playerInName: string,
+  oneGameweekGain: number,
+  threeGameweekGain: number,
+  fiveGameweekGain: number,
+  confidenceScore: number,
+  position = 'DEF',
+): TransferRecommendation {
+  return {
+    playerOut: { playerId: playerOutId, playerName: playerOutName, teamName: 'Old FC', position, price: 5.5, status: 'a', expectedMinutes: 70, nextFixtures: ['ARS (A)'] },
+    playerIn: { playerId: playerInId, playerName: playerInName, teamName: 'New FC', position, price: 5, status: 'a', expectedMinutes: 85, nextFixtures: ['CHE (H)', 'FUL (A)'] },
+    priceDifference: -0.5,
+    expectedPointGains: [
+      { gameweeks: 1, playerOutPoints: 4, playerInPoints: 4 + oneGameweekGain, expectedPointGain: oneGameweekGain },
+      { gameweeks: 3, playerOutPoints: 12, playerInPoints: 12 + threeGameweekGain, expectedPointGain: threeGameweekGain },
+      { gameweeks: 5, playerOutPoints: 20, playerInPoints: 20 + fiveGameweekGain, expectedPointGain: fiveGameweekGain },
+    ],
+    weightedGain: oneGameweekGain,
+    confidenceScore,
+    explanations: [{ factor: 'Expected points', score: oneGameweekGain, explanation: 'Strong projected upgrade.' }],
   }
 }

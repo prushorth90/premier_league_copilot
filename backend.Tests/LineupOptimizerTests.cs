@@ -56,6 +56,7 @@ public class LineupOptimizerTests
         Assert.True(validator.IsValid(result.StartingXi.Select(player => player.Position)));
         Assert.Equal(4, result.Bench.Count);
         Assert.Equal("GKP", result.Bench[^1].Position);
+        Assert.Equal([1], result.StartingXi[0].Projections.Select(projection => projection.Gameweeks));
         Assert.Equal([12, 13, 14, 15], result.Bench.Select(player => player.RecommendedSquadPosition));
         Assert.Equal(result.Bench.Take(3).OrderByDescending(player => player.RankingScore), result.Bench.Take(3));
         Assert.Contains(result.Changes, change => change.PlayerId == 12 && change.ChangeType == "Moved to starting XI");

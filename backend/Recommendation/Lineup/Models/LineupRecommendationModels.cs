@@ -21,7 +21,12 @@ public sealed record LineupPlayer(
     decimal ExpectedMinutes,
     decimal RankingScore,
     int CurrentSquadPosition,
-    int RecommendedSquadPosition);
+    int RecommendedSquadPosition,
+    IReadOnlyList<LineupHorizonProjection> Projections);
+
+public sealed record LineupHorizonProjection(
+    int Gameweeks,
+    decimal ProjectedPoints);
 
 public sealed record LineupChange(
     int PlayerId,

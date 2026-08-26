@@ -63,7 +63,10 @@ public sealed class LineupOptimizer(IFplFormationValidator formationValidator) :
             Round(expectedMinutes),
             Round(rankingScore),
             context.CurrentSquadPosition,
-            0);
+            0,
+            context.Projection.Horizons
+                .Select(horizon => new LineupHorizonProjection(horizon.Gameweeks, horizon.ProjectedPoints))
+                .ToArray());
     }
 
     private static FormationOption CreateFormation(
