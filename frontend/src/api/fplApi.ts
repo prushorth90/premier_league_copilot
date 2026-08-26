@@ -24,12 +24,17 @@ interface ProblemDetailsResponse {
   detail?: string
 }
 
-async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function request<T>(path: string, signal?: AbortSignal, init?: RequestInit): Promise<T> {
   let response: Response
 
   try {
     response = await fetch(`${apiBaseUrl}${path}`, {
-      headers: { Accept: 'application/json' },
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...init?.headers,
+      },
       signal,
     })
   } catch (error) {

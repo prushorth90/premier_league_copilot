@@ -26,6 +26,7 @@ describe('App routing', () => {
     ['/players', 'Players'],
     ['/fixtures', 'Fixtures'],
     ['/recommendations', 'Recommendations'],
+    ['/coach', 'AI Coach'],
     ['/settings', 'Settings'],
   ])('renders %s', (path, heading) => {
     expect(renderRoute(path)).toContain(heading)

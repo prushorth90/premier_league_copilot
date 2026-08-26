@@ -180,6 +180,19 @@ Player DTOs derive `photoUrl` from the official Premier League static image serv
 
 The React `PlayerHeadshot` component uses intrinsic `110x140` dimensions, fixed responsive containers, lazy loading, asynchronous decoding, and no-referrer requests. Missing player codes use the self-hosted `/images/player-placeholder.svg`; failed CDN requests switch to the same local placeholder. Production Content Security Policy allows images only from the application itself, data URLs, and `resources.premierleague.com`.
 
+### AI Coach
+
+The AI Coach page provides the first chat interaction layer for natural-language squad questions. Every message includes the connected public FPL Team ID and is sent as JSON to `POST /api/coach/chat`:
+
+```json
+{
+	"teamId": 7558250,
+	"message": "Should I sell Saka?"
+}
+```
+
+This initial endpoint returns deterministic mocked guidance and does not call an AI provider or use private FPL credentials. The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request` Problem Details. The `ICoachService` abstraction keeps the controller contract stable for a future AI implementation.
+
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
 ## Backend
@@ -323,6 +336,7 @@ On first use, the frontend asks for this public team ID, verifies it through the
 | `GET` | `/api/fpl/team/{teamId}/squad` | Current gameweek squad with enriched player details |
 | `GET` | `/api/fpl/players` | All players with team, position, price, availability, and points |
 | `GET` | `/api/fpl/fixtures` | Fixtures with team names, scores, kickoff, and difficulty |
+| `POST` | `/api/coach/chat` | Mocked team-aware natural-language coach response |
 | `GET` | `/api/recommendations/{teamId}/captain` | Ranked captain, vice captain, alternatives, and factor explanations |
 | `GET` | `/api/recommendations/{teamId}/lineup` | Best legal starting XI, formation, bench order, and current-lineup changes |
 | `GET` | `/api/recommendations/{teamId}/transfers?limit=20` | Valid transfer upgrades ranked across 1, 3, and 5 gameweeks |

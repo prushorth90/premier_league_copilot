@@ -1,4 +1,5 @@
 using Backend.Configuration;
+using Backend.Coach;
 using Backend.ExternalClients;
 using Backend.Middleware;
 using Backend.Persistence;
@@ -20,6 +21,7 @@ builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
 
 builder.Services.AddApplicationConfiguration(builder.Configuration);
+builder.Services.AddCoachServices();
 builder.Services.AddApplicationPersistence(builder.Configuration);
 builder.Services.AddApplicationServices();
 builder.Services.AddExternalClients();

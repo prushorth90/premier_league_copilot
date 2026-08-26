@@ -1,0 +1,154 @@
+import { AlertCircle, Bot, RotateCw, Send, ShieldCheck, UserRound } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { sendCoachMessage } from '../api/coachApi'
+import { ApiError } from '../api/fplApi'
+import { PageHeader } from '../components/ui/PageHeader'
+import type { CoachChatMessage } from '../models/coach'
+import { useTeam } from '../team/useTeam'
+
+const suggestions = [
+  'Saka is injured',
+  'Should I sell Saka?',
+  'Who can I replace him with?',
+]
+
+export function CoachPage() {
+  const { teamId } = useTeam()
+  const [draft, setDraft] = useState('')
+  const [messages, setMessages] = useState<CoachChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: 'Ask me about an injury, captaincy decision, lineup choice, or transfer idea.',
+      sentAt: new Date().toISOString(),
+      isMocked: true,
+    },
+  ])
+  const [isSending, setIsSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [failedMessage, setFailedMessage] = useState<string | null>(null)
+
+  async function requestReply(message: string, appendUser: boolean) {
+    if (!teamId || isSending) return
+
+    if (appendUser) {
+      setMessages((current) => [...current, createMessage('user', message)])
+    }
+    setDraft('')
+    setError(null)
+    setFailedMessage(null)
+    setIsSending(true)
+
+    try {
+      const response = await sendCoachMessage({ teamId, message })
+      setMessages((current) => [...current, {
+        id: createId(),
+        role: 'assistant',
+        content: response.message,
+        sentAt: response.respondedAt,
+        isMocked: response.isMocked,
+      }])
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : 'The coach could not respond. Try again.')
+      setFailedMessage(message)
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const message = draft.trim()
+    if (message) void requestReply(message, true)
+  }
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Team-aware conversation"
+        title="AI Coach"
+        description="A simple chat interface connected to your current FPL team. Responses are mocked in this first version."
+      />
+
+      <div className="grid min-h-[38rem] overflow-hidden border border-black/10 bg-white lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="flex min-h-[38rem] min-w-0 flex-col" aria-label="Coach conversation">
+          <div className="flex-1 space-y-5 overflow-y-auto bg-[#f7f7f3] p-4 sm:p-6" aria-live="polite">
+            {messages.map((message) => <ChatBubble key={message.id} message={message} />)}
+            {isSending && (
+              <div className="flex items-start gap-3">
+                <Avatar role="assistant" />
+                <div className="border border-black/10 bg-white px-4 py-3 text-sm text-black/45">
+                  <span className="inline-flex items-center gap-2"><span className="size-2 animate-pulse rounded-full bg-[#287c50]" /> Coach is thinking</span>
+                </div>
+              </div>
+            )}
+            {error && (
+              <div role="alert" className="flex items-start gap-3 border border-[#ff795f]/50 bg-[#fff2ee] p-4 text-[#762718]">
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <div className="min-w-0 flex-1"><p className="text-sm font-bold">Message not delivered</p><p className="mt-1 text-xs leading-5 text-[#762718]/70">{error}</p></div>
+                <button onClick={() => failedMessage && void requestReply(failedMessage, false)} disabled={isSending} className="inline-flex h-9 shrink-0 items-center gap-2 bg-[#a63625] px-3 text-xs font-bold text-white disabled:opacity-60"><RotateCw size={14} /> Retry</button>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={handleSubmit} className="border-t border-black/10 bg-white p-4 sm:p-5">
+            <label htmlFor="coach-message" className="sr-only">Message AI Coach</label>
+            <div className="flex items-end gap-3">
+              <textarea
+                id="coach-message"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    event.currentTarget.form?.requestSubmit()
+                  }
+                }}
+                maxLength={1_000}
+                rows={2}
+                placeholder="Ask about your squad..."
+                disabled={isSending}
+                className="max-h-36 min-h-14 min-w-0 flex-1 resize-y border border-black/15 bg-[#f4f4ef] px-4 py-3 text-sm outline-none focus:border-[#287c50] disabled:opacity-60"
+              />
+              <button type="submit" disabled={isSending || !draft.trim()} aria-label="Send message" title="Send message" className="grid size-14 shrink-0 place-items-center bg-[#151a17] text-[#b8ff3d] disabled:cursor-not-allowed disabled:opacity-35"><Send size={19} /></button>
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] text-black/35"><span>Enter to send · Shift+Enter for a new line</span><span>{draft.length}/1000</span></div>
+          </form>
+        </section>
+
+        <aside className="border-t border-black/10 bg-[#151a17] p-5 text-white lg:border-l lg:border-t-0">
+          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center bg-[#b8ff3d] text-[#151a17]"><Bot size={19} /></span><div><p className="font-bold">Coach context</p><p className="text-xs text-white/45">Team ID {teamId}</p></div></div>
+          <div className="mt-6 flex items-start gap-2 border-y border-white/10 py-4 text-xs leading-5 text-white/55"><ShieldCheck className="mt-0.5 shrink-0 text-[#77d6c5]" size={16} /><p>Your connected Team ID is included with every message.</p></div>
+          <p className="mt-6 text-[10px] font-bold uppercase text-[#b8ff3d]">Try asking</p>
+          <div className="mt-3 space-y-2">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => void requestReply(suggestion, true)} disabled={isSending} className="w-full border border-white/10 px-3 py-3 text-left text-xs font-semibold text-white/70 hover:border-[#b8ff3d]/50 hover:text-white disabled:opacity-40">{suggestion}</button>)}</div>
+          <p className="mt-6 text-[10px] leading-4 text-white/35">Mock responses only. No AI provider or private account credentials are used yet.</p>
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function ChatBubble({ message }: { message: CoachChatMessage }) {
+  const isUser = message.role === 'user'
+  return (
+    <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+      <Avatar role={message.role} />
+      <div className={`max-w-[min(34rem,82%)] px-4 py-3 text-sm leading-6 ${isUser ? 'bg-[#151a17] text-white' : 'border border-black/10 bg-white text-[#151a17]'}`}>
+        <p>{message.content}</p>
+        {message.isMocked && <p className="mt-2 text-[9px] font-bold uppercase text-[#287c50]">Mocked response</p>}
+      </div>
+    </div>
+  )
+}
+
+function Avatar({ role }: { role: CoachChatMessage['role'] }) {
+  return <span className={`grid size-9 shrink-0 place-items-center ${role === 'user' ? 'bg-[#ff795f]' : 'bg-[#b8ff3d]'}`}>{role === 'user' ? <UserRound size={16} /> : <Bot size={17} />}</span>
+}
+
+function createMessage(role: CoachChatMessage['role'], content: string): CoachChatMessage {
+  return { id: createId(), role, content, sentAt: new Date().toISOString() }
+}
+
+function createId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}

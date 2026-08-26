@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
+import { CoachPage } from './pages/CoachPage'
 import { FixturesPage } from './pages/FixturesPage'
 import { MyTeamPage } from './pages/MyTeamPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -34,6 +35,7 @@ function App({ initialTeamId }: AppProps = {}) {
           <Route path="players" element={<PlayersPage />} />
           <Route path="fixtures" element={<FixturesPage />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
+          <Route path="coach" element={<CoachPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
