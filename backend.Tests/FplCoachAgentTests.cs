@@ -92,7 +92,7 @@ public class FplCoachAgentTests
     }
 
     [Fact]
-    public void MarkdownAgentProviderLogsEveryLoadedFileNameAgentAndToolSet()
+    public void MarkdownAgentProviderLogsEveryLoadedFileNameAgentAndTools()
     {
         var logger = new RecordingLogger<MarkdownFplCoachAgentProvider>();
 

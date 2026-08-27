@@ -27,7 +27,7 @@ public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
         {
             var agent = Load(agentDirectory, definition);
             logger?.LogInformation(
-                "Loaded Copilot agent file {AgentFile} as {AgentName} with tools {AgentTools}",
+                "Loaded Markdown agent file {AgentFile} as {AgentName} with tools {AgentTools}",
                 Path.Combine(agentDirectory, definition.FileName),
                 agent.Name,
                 agent.Tools.Count == 0 ? "none" : string.Join(",", agent.Tools));
@@ -42,7 +42,7 @@ public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
         var path = Path.Combine(directory, definition.FileName);
         if (!File.Exists(path))
         {
-            throw new InvalidOperationException($"Required Copilot agent file '{definition.FileName}' was not found in '{directory}'.");
+            throw new InvalidOperationException($"Required Markdown agent file '{definition.FileName}' was not found in '{directory}'.");
         }
 
         var document = ParseDocument(File.ReadAllText(path), definition.FileName);
@@ -143,7 +143,7 @@ public sealed class MarkdownFplCoachAgentProvider : IFplCoachAgentProvider
         };
         return candidates.FirstOrDefault(Directory.Exists)
             ?? throw new InvalidOperationException(
-                $"Copilot agent directory was not found. Checked: {string.Join(", ", candidates)}.");
+                $"Markdown agent directory was not found. Checked: {string.Join(", ", candidates)}.");
     }
 
     private sealed record AgentDefinition(
