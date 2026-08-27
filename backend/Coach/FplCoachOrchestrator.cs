@@ -6,6 +6,7 @@ public sealed class FplCoachOrchestrator(
     IFplCoachFactService factService,
     IPlayerRecommendationService recommendationService,
     IFplCoachAgentProvider agentProvider,
+    ICoachMessageInterpreter messageInterpreter,
     ILogger<FplCoachOrchestrator> logger) : IFplCoachOrchestrator
 {
     public async Task<FplCoachOrchestrationResult> OrchestrateAsync(
@@ -17,7 +18,12 @@ public sealed class FplCoachOrchestrator(
     {
         var agents = agentProvider.GetAgents();
         var parent = agents.Single(agent => agent.Name == FplCoachAgents.ParentName);
-        var recommendationType = GetRecommendationType(message);
+        var interpretation = await messageInterpreter.InterpretAsync(
+            context,
+            playerId,
+            message,
+            cancellationToken);
+        var recommendationType = interpretation.RecommendationType;
         PlayerAvailabilityResult? availability = null;
         PlayerFixtureWindowResult? fixtures = null;
         PlayerReplacementResult? transfers = null;
@@ -39,8 +45,8 @@ public sealed class FplCoachOrchestrator(
             recommendation = await recommendationService.GetRecommendationIfAtRiskAsync(
                 context,
                 availability,
-                GetDecisionGameweeks(message),
-                3,
+                interpretation.DecisionGameweeks,
+                interpretation.CandidateLimit,
                 cancellationToken);
             logger.LogDebug("Applied specialist definition {AgentName}", injuryAgent.Name);
         }
@@ -55,8 +61,8 @@ public sealed class FplCoachOrchestrator(
             recommendation = await recommendationService.GetRecommendationAsync(
                 context,
                 recommendationPlayerId,
-                GetDecisionGameweeks(message),
-                3,
+                interpretation.DecisionGameweeks,
+                interpretation.CandidateLimit,
                 cancellationToken);
             availability = recommendation.Availability;
         }
@@ -67,7 +73,7 @@ public sealed class FplCoachOrchestrator(
             fixtures = await factService.GetUpcomingFixturesAsync(
                 context,
                 fixturePlayerId,
-                GetRequestedGameweeks(message),
+                interpretation.FixtureGameweeks,
                 cancellationToken);
         }
 
@@ -124,38 +130,6 @@ public sealed class FplCoachOrchestrator(
     private static bool MayMissMatches(PlayerAvailabilityResult availability) =>
         availability.Status is "d" or "i" or "s" or "u" or "n"
         || availability.ChanceOfPlayingNextRound is int chance && chance < 75;
-
-    private static CoachRecommendationType GetRecommendationType(string message)
-    {
-        if (ContainsAny(message, "injur", "doubt", "available")) return CoachRecommendationType.Availability;
-        if (ContainsAny(message, "fixture", "schedule", "opponent")) return CoachRecommendationType.Fixture;
-        if (ContainsAny(message, "bench", "hold", "start", "what should")) return CoachRecommendationType.Recommendation;
-        if (ContainsAny(message, "sell", "transfer out")) return CoachRecommendationType.Transfer;
-        if (ContainsAny(message, "replace", "who")) return CoachRecommendationType.Replacement;
-        return CoachRecommendationType.General;
-    }
-
-    private static bool ContainsAny(string message, params string[] values) =>
-        values.Any(value => message.Contains(value, StringComparison.OrdinalIgnoreCase));
-
-    private static int GetRequestedGameweeks(string message)
-    {
-        for (var gameweeks = 1; gameweeks <= 5; gameweeks++)
-        {
-            if (ContainsAny(message, $"{gameweeks} fixture", $"{gameweeks} gameweek", $"next {gameweeks}"))
-            {
-                return gameweeks;
-            }
-        }
-
-        return 3;
-    }
-
-    private static int GetDecisionGameweeks(string message)
-    {
-        var requested = GetRequestedGameweeks(message);
-        return requested == 3 && !message.Contains("3", StringComparison.OrdinalIgnoreCase) ? 5 : requested;
-    }
 
     private static bool RequiresRecommendation(CoachRecommendationType type) =>
         type is CoachRecommendationType.Recommendation or CoachRecommendationType.Transfer or CoachRecommendationType.Replacement;

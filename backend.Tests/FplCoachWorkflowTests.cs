@@ -107,7 +107,9 @@ public class FplCoachWorkflowTests
                 facts,
                 new PlayerRecommendationService(facts),
                 provider,
+                new DeterministicCoachMessageInterpreter(),
                 NullLogger<FplCoachOrchestrator>.Instance),
+            new DeterministicCoachResponseGenerator(),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 

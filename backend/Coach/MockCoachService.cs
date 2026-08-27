@@ -7,6 +7,7 @@ namespace Backend.Coach;
 public sealed class FplCoachService(
     IFplDataService fplDataService,
     IFplCoachOrchestrator orchestrator,
+    ICoachResponseGenerator responseGenerator,
     TimeProvider timeProvider,
     ILogger<FplCoachService> logger) : ICoachService
 {
@@ -66,11 +67,9 @@ public sealed class FplCoachService(
             progressSink,
             cancellationToken);
         await ReportAsync(progressSink, "preparing-answer", "Preparing recommendation", cancellationToken);
-        var reply = ComposeReply(
-            orchestration.RecommendationType,
-            orchestration.Availability,
-            orchestration.Fixtures,
-            orchestration.Recommendation);
+        var reply = await responseGenerator.GenerateAsync(
+            new CoachResponseContext(normalizedMessage, context, playerInfo, orchestration),
+            cancellationToken);
         var structuredRecommendation = orchestration.Recommendation is not null && playerInfo is not null
             ? MapStructuredRecommendation(playerInfo, orchestration.Recommendation)
             : null;
@@ -88,41 +87,6 @@ public sealed class FplCoachService(
                 orchestration.Transfers,
                 orchestration.Recommendation,
             structuredRecommendation);
-    }
-
-    private static string ComposeReply(
-        CoachRecommendationType recommendationType,
-        PlayerAvailabilityResult? availability,
-        PlayerFixtureWindowResult? fixtures,
-        PlayerRecommendationResult? recommendation)
-    {
-        if (recommendation is not null)
-        {
-            var deterministic = $"Deterministic recommendation: {recommendation.Action.ToString().ToUpperInvariant()}. "
-                + $"{recommendation.Reason} Confidence: {recommendation.Confidence:0}%. "
-                + $"Projected impact: {recommendation.ProjectedImpact:+0.00;-0.00;0.00} points over {recommendation.ProjectionGameweeks} gameweeks.";
-            return recommendationType == CoachRecommendationType.Availability
-                && availability is not null
-                && availability.Status != "i"
-                    ? $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}. {deterministic}"
-                    : deterministic;
-        }
-
-        if (recommendationType == CoachRecommendationType.Availability && availability is not null)
-        {
-            var chance = availability.ChanceOfPlayingNextRound is int value ? $" Chance of playing: {value}%." : string.Empty;
-            var expectedReturn = availability.ExpectedReturn is not null ? $" Expected return: {availability.ExpectedReturn}." : string.Empty;
-            return availability.Status == "i"
-                ? $"Official FPL data confirms that {availability.Player.PlayerName} is injured.{chance}{expectedReturn} Confidence: {availability.Confidence:0}%."
-                : $"Official FPL data does not confirm that {availability.Player.PlayerName} is injured. Current status: {availability.StatusDescription}.{chance}{expectedReturn} Confidence: {availability.Confidence:0}%.";
-        }
-
-        if (fixtures is not null)
-        {
-            return fixtures.Explanation;
-        }
-
-        return "I could not identify a supported injury, fixture, or transfer question for a player in the connected squad.";
     }
 
     private static ValueTask ReportAsync(

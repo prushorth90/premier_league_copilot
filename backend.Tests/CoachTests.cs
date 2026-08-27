@@ -32,7 +32,9 @@ public class CoachTests
                 facts,
                 new StubPlayerRecommendationService(),
                 new TestAgentProvider(),
+                new DeterministicCoachMessageInterpreter(),
                 orchestratorLogger),
+            new DeterministicCoachResponseGenerator(),
             new FixedTimeProvider(timestamp),
             logger);
 
@@ -101,7 +103,9 @@ public class CoachTests
                 new StubCoachFactService(),
                 new StubPlayerRecommendationService(),
                 new TestAgentProvider(),
+                new DeterministicCoachMessageInterpreter(),
                 NullLogger<FplCoachOrchestrator>.Instance),
+            new DeterministicCoachResponseGenerator(),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 
@@ -162,7 +166,9 @@ public class CoachTests
                 facts,
                 new StubPlayerRecommendationService(),
                 new TestAgentProvider(),
+                new DeterministicCoachMessageInterpreter(),
                 NullLogger<FplCoachOrchestrator>.Instance),
+            new DeterministicCoachResponseGenerator(),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 
@@ -178,6 +184,59 @@ public class CoachTests
             ],
             progress.Updates.Select(update => update.Message));
         Assert.All(progress.Updates, update => Assert.DoesNotContain("reason", update.Message, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task OrchestratorAcceptsReplaceableMessageInterpreter()
+    {
+        var facts = new StubCoachFactService();
+        var orchestrator = new FplCoachOrchestrator(
+            facts,
+            new StubPlayerRecommendationService(),
+            new TestAgentProvider(),
+            new FixedMessageInterpreter(new CoachMessageInterpretation(CoachRecommendationType.Fixture, 5, 5, 3)),
+            NullLogger<FplCoachOrchestrator>.Instance);
+        var context = new FplCoachContext(
+            42,
+            "Expected Goals",
+            8,
+            0.5m,
+            100m,
+            [new FplCoachSquadPlayer(10, "Saka", "Arsenal", "MID", 10m, "a", "", null, true, false, false)]);
+
+        var result = await orchestrator.OrchestrateAsync(
+            context,
+            10,
+            "provider-specific phrasing",
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(CoachRecommendationType.Fixture, result.RecommendationType);
+        Assert.Equal(5, result.Fixtures?.RequestedGameweeks);
+        Assert.Equal([FplCoachAgents.FixtureSpecialistName], result.Grounding.InvokedAgents);
+    }
+
+    [Fact]
+    public async Task ServiceAcceptsReplaceableResponseGenerator()
+    {
+        var facts = new StubCoachFactService();
+        var service = new FplCoachService(
+            new StubFplDataService(),
+            new FplCoachOrchestrator(
+                facts,
+                new StubPlayerRecommendationService(),
+                new TestAgentProvider(),
+                new DeterministicCoachMessageInterpreter(),
+                NullLogger<FplCoachOrchestrator>.Instance),
+            new FixedResponseGenerator("External provider response."),
+            TimeProvider.System,
+            NullLogger<FplCoachService>.Instance);
+
+        var response = await service.ReplyAsync(42, "Saka is injured", CancellationToken.None);
+
+        Assert.Equal("External provider response.", response.Message);
+        Assert.Equal(CoachRecommendationType.Availability, response.RecommendationType);
+        Assert.NotNull(response.Availability);
     }
 
     [Fact]
@@ -262,6 +321,21 @@ public class CoachTests
             Updates.Add(update);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class FixedMessageInterpreter(CoachMessageInterpretation interpretation) : ICoachMessageInterpreter
+    {
+        public Task<CoachMessageInterpretation> InterpretAsync(
+            FplCoachContext context,
+            int? playerId,
+            string message,
+            CancellationToken cancellationToken) => Task.FromResult(interpretation);
+    }
+
+    private sealed class FixedResponseGenerator(string response) : ICoachResponseGenerator
+    {
+        public Task<string> GenerateAsync(CoachResponseContext context, CancellationToken cancellationToken) =>
+            Task.FromResult(response);
     }
 
     private sealed class StubFplDataService : IFplDataService
