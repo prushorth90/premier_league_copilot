@@ -24,11 +24,15 @@ public class CoachTests
         var timestamp = new DateTimeOffset(2026, 8, 26, 12, 0, 0, TimeSpan.Zero);
         var dataService = new StubFplDataService();
         var logger = new RecordingLogger<FplCoachService>();
+        var orchestratorLogger = new RecordingLogger<FplCoachOrchestrator>();
+        var facts = new StubCoachFactService();
         var service = new FplCoachService(
             dataService,
-            new StubCoachFactService(),
-            new StubPlayerRecommendationService(),
-            new TestAgentProvider(),
+            new FplCoachOrchestrator(
+                facts,
+                new StubPlayerRecommendationService(),
+                new TestAgentProvider(),
+                orchestratorLogger),
             new FixedTimeProvider(timestamp),
             logger);
 
@@ -80,10 +84,10 @@ public class CoachTests
             Assert.Null(response.Transfers);
             Assert.Null(response.Recommendation);
         }
-        Assert.Contains(logger.Messages, entry => entry.Contains(
+        Assert.Contains(orchestratorLogger.Messages, entry => entry.Contains(
             $"AI Coach parent {FplCoachAgents.ParentName}",
             StringComparison.Ordinal));
-        Assert.Contains(logger.Messages, entry => entry.Contains(
+        Assert.Contains(orchestratorLogger.Messages, entry => entry.Contains(
             ExpectedInvokedAgents(expectedType),
             StringComparison.Ordinal));
     }
@@ -93,9 +97,11 @@ public class CoachTests
     {
         var service = new FplCoachService(
             new StubFplDataService { TeamIsMissing = true },
-            new StubCoachFactService(),
-            new StubPlayerRecommendationService(),
-            new TestAgentProvider(),
+            new FplCoachOrchestrator(
+                new StubCoachFactService(),
+                new StubPlayerRecommendationService(),
+                new TestAgentProvider(),
+                NullLogger<FplCoachOrchestrator>.Instance),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 
@@ -149,11 +155,14 @@ public class CoachTests
     public async Task FplCoachServiceReportsOnlyHighLevelProgressForInjuryWorkflow()
     {
         var progress = new RecordingProgressSink();
+        var facts = new StubCoachFactService();
         var service = new FplCoachService(
             new StubFplDataService(),
-            new StubCoachFactService(),
-            new StubPlayerRecommendationService(),
-            new TestAgentProvider(),
+            new FplCoachOrchestrator(
+                facts,
+                new StubPlayerRecommendationService(),
+                new TestAgentProvider(),
+                NullLogger<FplCoachOrchestrator>.Instance),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 

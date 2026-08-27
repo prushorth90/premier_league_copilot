@@ -100,11 +100,14 @@ public class FplCoachWorkflowTests
         string message)
     {
         var facts = new ScenarioFactService(availability, fixtures, transfers);
+        var provider = new TestAgentProvider();
         var service = new FplCoachService(
             new ScenarioFplDataService(),
-            facts,
-            new PlayerRecommendationService(facts),
-            new TestAgentProvider(),
+            new FplCoachOrchestrator(
+                facts,
+                new PlayerRecommendationService(facts),
+                provider,
+                NullLogger<FplCoachOrchestrator>.Instance),
             TimeProvider.System,
             NullLogger<FplCoachService>.Instance);
 

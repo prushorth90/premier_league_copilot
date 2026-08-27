@@ -6,9 +6,7 @@ namespace Backend.Coach;
 
 public sealed class FplCoachService(
     IFplDataService fplDataService,
-    IFplCoachFactService factService,
-    IPlayerRecommendationService recommendationService,
-    IFplCoachAgentProvider agentProvider,
+    IFplCoachOrchestrator orchestrator,
     TimeProvider timeProvider,
     ILogger<FplCoachService> logger) : ICoachService
 {
@@ -32,8 +30,6 @@ public sealed class FplCoachService(
         CancellationToken cancellationToken)
     {
         var normalizedMessage = message.Trim();
-        var agents = agentProvider.GetAgents();
-        var parentAgent = agents.Single(agent => agent.Name == FplCoachAgents.ParentName);
         await ReportAsync(progressSink, "loading-squad", "Loading squad context", cancellationToken);
         var managerTask = fplDataService.GetManagerAsync(teamId, cancellationToken);
         var bootstrapTask = fplDataService.GetBootstrapDataAsync(cancellationToken);
@@ -51,7 +47,6 @@ public sealed class FplCoachService(
             .Where(player => squadPlayerIds.Contains(player.Id))
             .OrderByDescending(player => player.DisplayName.Length)
             .FirstOrDefault(player => IsPlayerMentioned(normalizedMessage, player));
-        var recommendationType = GetRecommendationType(normalizedMessage);
         var playerInfo = matchedPlayer is null
             ? null
             : MapPlayer(matchedPlayer, bootstrap);
@@ -64,63 +59,20 @@ public sealed class FplCoachService(
             "Starting AI Coach orchestration for TeamId {TeamId} and PlayerId {PlayerId}",
             teamId,
             matchedPlayer?.Id);
-        PlayerAvailabilityResult? availability = null;
-        PlayerRecommendationResult? recommendation = null;
-        if (matchedPlayer is not null && recommendationType == CoachRecommendationType.Availability)
-        {
-            await ReportAsync(progressSink, "checking-availability", "Checking player availability", cancellationToken);
-            availability = factService.GetPlayerAvailability(context, matchedPlayer.Id);
-            if (MayMissMatches(availability))
-            {
-                await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
-                await ReportAsync(progressSink, "comparing-replacements", "Comparing replacements", cancellationToken);
-            }
-            recommendation = await recommendationService.GetRecommendationIfAtRiskAsync(
-                context,
-                availability,
-                GetDecisionGameweeks(normalizedMessage),
-                3,
-                cancellationToken);
-        }
-        else if (matchedPlayer is not null && RequiresRecommendation(recommendationType))
-        {
-            await ReportAsync(progressSink, "checking-availability", "Checking player availability", cancellationToken);
-            await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
-            await ReportAsync(progressSink, "comparing-replacements", "Comparing replacements", cancellationToken);
-            recommendation = await recommendationService.GetRecommendationAsync(
-                context,
-                matchedPlayer.Id,
-                GetDecisionGameweeks(normalizedMessage),
-                3,
-                cancellationToken);
-            availability = recommendation.Availability;
-        }
-
-        PlayerFixtureWindowResult? fixtures = recommendation?.Fixtures;
-        if (fixtures is null && recommendationType == CoachRecommendationType.Fixture && matchedPlayer is not null)
-        {
-            await ReportAsync(progressSink, "analyzing-fixtures", "Analyzing upcoming fixtures", cancellationToken);
-            fixtures = await factService.GetUpcomingFixturesAsync(
-                context,
-                matchedPlayer.Id,
-                GetRequestedGameweeks(normalizedMessage),
-                cancellationToken);
-        }
-        var transfers = recommendation?.Transfers;
-        var confidence = recommendation?.Confidence
-            ?? availability?.Confidence
-            ?? transfers?.Candidates.FirstOrDefault()?.Confidence
-            ?? GetConfidence(recommendationType, matchedPlayer);
-        var grounding = CreateGrounding(availability, fixtures, transfers, recommendation);
-        logger.LogInformation(
-            "AI Coach parent {ParentAgent} used specialist definitions {InvokedAgents}; deterministic action {RecommendationAction}",
-            parentAgent.Name,
-            grounding.InvokedAgents.Count == 0 ? "none" : string.Join(",", grounding.InvokedAgents),
-            recommendation?.Action.ToString() ?? "none");
+        var orchestration = await orchestrator.OrchestrateAsync(
+            context,
+            matchedPlayer?.Id,
+            normalizedMessage,
+            progressSink,
+            cancellationToken);
         await ReportAsync(progressSink, "preparing-answer", "Preparing recommendation", cancellationToken);
-        var reply = ComposeReply(recommendationType, availability, fixtures, recommendation);
-        var structuredRecommendation = recommendation is not null && playerInfo is not null
-            ? MapStructuredRecommendation(playerInfo, recommendation)
+        var reply = ComposeReply(
+            orchestration.RecommendationType,
+            orchestration.Availability,
+            orchestration.Fixtures,
+            orchestration.Recommendation);
+        var structuredRecommendation = orchestration.Recommendation is not null && playerInfo is not null
+            ? MapStructuredRecommendation(playerInfo, orchestration.Recommendation)
             : null;
 
         return new CoachChatResponse(
@@ -128,13 +80,13 @@ public sealed class FplCoachService(
             teamId,
             timeProvider.GetUtcNow(),
             false,
-            recommendationType,
-            confidence,
+                orchestration.RecommendationType,
+                orchestration.Confidence,
             playerInfo,
-            availability,
-            fixtures,
-            transfers,
-            recommendation,
+                orchestration.Availability,
+                orchestration.Fixtures,
+                orchestration.Transfers,
+                orchestration.Recommendation,
             structuredRecommendation);
     }
 
@@ -172,10 +124,6 @@ public sealed class FplCoachService(
 
         return "I could not identify a supported injury, fixture, or transfer question for a player in the connected squad.";
     }
-
-    private static bool MayMissMatches(PlayerAvailabilityResult availability) =>
-        availability.Status is "d" or "i" or "s" or "u" or "n"
-        || availability.ChanceOfPlayingNextRound is int chance && chance < 75;
 
     private static ValueTask ReportAsync(
         ICoachProgressSink? progressSink,
@@ -223,31 +171,6 @@ public sealed class FplCoachService(
             recommendation.Reason);
     }
 
-    private static CoachSpecialistGrounding CreateGrounding(
-        PlayerAvailabilityResult? availability,
-        PlayerFixtureWindowResult? fixtures,
-        PlayerReplacementResult? transfers,
-        PlayerRecommendationResult? recommendation)
-    {
-        var invokedAgents = new List<string>(3);
-        if (availability is not null)
-        {
-            invokedAgents.Add(FplCoachAgents.InjurySpecialistName);
-        }
-
-        if (fixtures is not null)
-        {
-            invokedAgents.Add(FplCoachAgents.FixtureSpecialistName);
-        }
-
-        if (transfers is not null)
-        {
-            invokedAgents.Add(FplCoachAgents.TransferSpecialistName);
-        }
-
-        return new CoachSpecialistGrounding(invokedAgents, availability, fixtures, transfers, recommendation);
-    }
-
     private static FplCoachContext CreateContext(
         int teamId,
         Manager manager,
@@ -280,83 +203,6 @@ public sealed class FplCoachService(
                     pick.IsViceCaptain);
             }).ToArray());
     }
-
-    private static CoachRecommendationType GetRecommendationType(string message)
-    {
-        if (message.Contains("injur", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("doubt", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("available", StringComparison.OrdinalIgnoreCase))
-        {
-            return CoachRecommendationType.Availability;
-        }
-
-        if (message.Contains("fixture", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("schedule", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("opponent", StringComparison.OrdinalIgnoreCase))
-        {
-            return CoachRecommendationType.Fixture;
-        }
-
-        if (message.Contains("bench", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("hold", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("start", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("what should", StringComparison.OrdinalIgnoreCase))
-        {
-            return CoachRecommendationType.Recommendation;
-        }
-
-        if (message.Contains("sell", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("transfer out", StringComparison.OrdinalIgnoreCase))
-        {
-            return CoachRecommendationType.Transfer;
-        }
-
-        if (message.Contains("replace", StringComparison.OrdinalIgnoreCase) ||
-            message.Contains("who", StringComparison.OrdinalIgnoreCase))
-        {
-            return CoachRecommendationType.Replacement;
-        }
-
-        return CoachRecommendationType.General;
-    }
-
-    private static decimal GetConfidence(CoachRecommendationType recommendationType, Player? player) =>
-        recommendationType switch
-        {
-            CoachRecommendationType.Availability when player is not null => 78m,
-            CoachRecommendationType.Fixture when player is not null => 90m,
-            CoachRecommendationType.Recommendation when player is not null => 80m,
-            CoachRecommendationType.Transfer when player is not null => 68m,
-            CoachRecommendationType.Replacement when player is not null => 64m,
-            CoachRecommendationType.General => 35m,
-            _ => 45m
-        };
-
-    private static int GetRequestedGameweeks(string message)
-    {
-        for (var gameweeks = 1; gameweeks <= 5; gameweeks++)
-        {
-            if (message.Contains($"{gameweeks} fixture", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains($"{gameweeks} gameweek", StringComparison.OrdinalIgnoreCase) ||
-                message.Contains($"next {gameweeks}", StringComparison.OrdinalIgnoreCase))
-            {
-                return gameweeks;
-            }
-        }
-
-        return 3;
-    }
-
-    private static int GetDecisionGameweeks(string message)
-    {
-        var requested = GetRequestedGameweeks(message);
-        return requested == 3 && !message.Contains("3", StringComparison.OrdinalIgnoreCase) ? 5 : requested;
-    }
-
-    private static bool RequiresRecommendation(CoachRecommendationType recommendationType) =>
-        recommendationType is CoachRecommendationType.Recommendation
-            or CoachRecommendationType.Transfer
-            or CoachRecommendationType.Replacement;
 
     private static bool IsPlayerMentioned(string message, Player player) =>
         ContainsName(message, player.DisplayName) ||

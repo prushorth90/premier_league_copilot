@@ -204,7 +204,7 @@ Agent behavior is defined in repository-level Markdown rather than embedded C# p
 
 `MarkdownFplCoachAgentProvider` reads YAML frontmatter and Markdown instructions into application-owned immutable definitions. The files are linked into .NET build/publish output and copied into both development and production containers. Loading fails closed if a required file, name, description, instructions, or exact tool declaration is missing or changed. C# is authoritative for application tools, exact tool allowlists, FPL API access, validation, projections, budget and club constraints, orchestration, deterministic recommendations, and final response composition.
 
-`FplCoachAgent` is the parent definition. InjuryAgent, FixtureAgent, and TransferAgent each declare only their corresponding backend tool. For requests such as `Saka is injured`, ASP.NET Core loads the current connected squad, follows the parent delegation rules, executes the required specialist tool paths, passes their structured outputs through `PlayerRecommendationService`, and composes the final response deterministically.
+`FplCoachAgent` is the parent definition. InjuryAgent, FixtureAgent, and TransferAgent each declare only their corresponding backend tool. `FplCoachOrchestrator` is the C# execution layer: it inspects the natural-language message, validates each selected Markdown specialist and exact tool allowlist, invokes the required fact workflows, and passes structured outputs through `PlayerRecommendationService`. Independent fixture and transfer work runs concurrently inside the recommendation service. `FplCoachService` owns squad loading, player grounding, final DTO mapping, and deterministic conversational text.
 
 Structured logs record each loaded agent file, agent name, and enforced tool set. Per request, logs record Team ID, matched player ID, the parent definition, specialist definitions used by backend orchestration, and the deterministic action. User message text, instructions, and raw tool payloads are not logged.
 
@@ -276,7 +276,7 @@ The chat interface submits new messages to `POST /api/coach/chat/stream`, which 
 
 ASP.NET Core disables proxy buffering and flushes each SSE event immediately. Progress originates at C# orchestration boundaries and never includes prompts, tool payloads, chain-of-thought, or raw agent reasoning. React displays received statuses while the request is active, then removes the progress panel and replaces it with the final conversational answer and recommendation card when `complete` arrives.
 
-The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request` and missing FPL teams return `404 Not Found`. `ICoachService` owns squad context and orchestration, while `IFplCoachFactService` owns read-only specialist facts.
+The frontend maintains the current conversation in memory and includes pending, failure, and retry states. Messages are limited to 1,000 characters; invalid requests return `400 Bad Request` and missing FPL teams return `404 Not Found`. `ICoachService` owns squad context and response mapping, `IFplCoachOrchestrator` owns agent routing, and `IFplCoachFactService` owns read-only specialist facts.
 
 Set `VITE_API_BASE_URL` only for standalone development when the API is on another origin.
 
